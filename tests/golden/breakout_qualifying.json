@@ -1,0 +1,13 @@
+{
+    "ticker": "SYN",
+    "close": 44.4,
+    "pct_to_52w_high": 99.51,
+    "vol_ratio": 3.48,
+    "rsi": 69.9,
+    "adx": 27.2,
+    "bb_width": 0.0056,
+    "market_cap": 2500000000.0,
+    "profitable": true,
+    "debt_equity": 50.0,
+    "score": 101.7
+}

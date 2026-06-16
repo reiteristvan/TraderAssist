@@ -1,0 +1,13 @@
+{
+    "qualified": true,
+    "failed_gates": "",
+    "gates_passed": 19,
+    "gates_total": 19,
+    "score": 125.2,
+    "pullback_depth_pct": 5.17,
+    "rsi": 41.0,
+    "adx": 59.3,
+    "vol_contraction": 0.48,
+    "rs_strength": 1.075,
+    "ma200_distance_pct": 27.72
+}

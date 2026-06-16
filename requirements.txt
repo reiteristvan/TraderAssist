@@ -1,0 +1,8 @@
+yfinance
+pandas
+numpy
+ta
+pyarrow
+pandas_market_calendars
+pytest
+pytest-cov

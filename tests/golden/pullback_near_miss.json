@@ -1,0 +1,14 @@
+{
+    "_perturbation": "depth=0.035 (below PULLBACK_DEPTH_RANGE min of 0.04); all other generation params at make_pullback_setup() defaults",
+    "qualified": false,
+    "failed_gates": "Pullback depth",
+    "gates_passed": 18,
+    "gates_total": 19,
+    "score": 133.7,
+    "pullback_depth_pct": 3.68,
+    "rsi": 49.6,
+    "adx": 62.2,
+    "vol_contraction": 0.48,
+    "rs_strength": 1.092,
+    "ma200_distance_pct": 29.66
+}
