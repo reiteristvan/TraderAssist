@@ -1,9 +1,11 @@
-"""E2 — GateLog, EvalContext, QualityInfo, shared indicators, context factory, scan loop.
+"""E2/E4 — GateLog, EvalContext, QualityInfo, shared indicators, context factory, scan loop.
 
-See CLAUDE.md EPIC E2/E3.
+See CLAUDE.md EPIC E2/E3/E4.
 """
 from __future__ import annotations
 
+import dataclasses
+import math
 import warnings
 from dataclasses import dataclass
 from datetime import date
@@ -222,6 +224,114 @@ def _sector_strength(sector: Optional[str], market_data: dict) -> dict:
     return out
 
 
+# ── E4.3 helpers (for confidence scoring) ────────────────────────────────────
+
+def _sma_slope(df: pd.DataFrame, period: int = 50, lookback: int = 5) -> float:
+    """SMA slope as % change over `lookback` bars (verbatim swing_scanner SMA_50_Slope)."""
+    sma = df["Close"].rolling(period).mean()
+    cur = sma.iloc[-1]
+    prev = sma.iloc[-1 - lookback]
+    if pd.isna(cur) or pd.isna(prev) or prev == 0:
+        return 0.0
+    return float((cur - prev) / prev * 100)
+
+
+def _macd_bullish(df: pd.DataFrame) -> bool:
+    """True when MACD line is above signal line (MACD histogram > 0)."""
+    from ta.trend import MACD
+    macd = MACD(df["Close"], window_slow=26, window_fast=12, window_sign=9)
+    hist = macd.macd_diff().iloc[-1]
+    return bool(not pd.isna(hist) and hist > 0)
+
+
+# ── E4.4 — position sizing ────────────────────────────────────────────────────
+
+@dataclass
+class SizeInfo:
+    shares: int
+    position_value: float
+    risk_amount: float
+    capped: bool           # True when max-position cap bound
+    zero_reason: str       # non-empty when shares==0
+
+
+def position_size(
+    entry: float,
+    stop: float,
+    account_size: float = 6500.0,
+    risk_pct: float = 0.01,
+    max_position: float = 650.0,
+) -> SizeInfo:
+    """Risk-based position sizing.
+
+    shares = floor(account_size * risk_pct / (entry - stop)),
+    capped at floor(max_position / entry).
+    entry <= stop → 0 shares with message, no ZeroDivisionError.
+    """
+    if entry <= stop:
+        return SizeInfo(shares=0, position_value=0.0, risk_amount=0.0,
+                        capped=False, zero_reason="entry <= stop: invalid stop level")
+    risk_per_share = entry - stop
+    raw_shares = int(account_size * risk_pct / risk_per_share)
+    cap_shares = int(max_position / entry) if entry > 0 else 0
+    capped = raw_shares > cap_shares
+    shares = min(raw_shares, cap_shares)
+    return SizeInfo(
+        shares=shares,
+        position_value=round(shares * entry, 2),
+        risk_amount=round(shares * risk_per_share, 2),
+        capped=capped,
+        zero_reason="",
+    )
+
+
+# ── E4.5 — calendar (market session) ─────────────────────────────────────────
+
+def last_closed_session(now=None) -> date:
+    """Return the most recent fully-closed NYSE trading session.
+
+    Pass a tz-aware datetime for `now`, or None to use the current time.
+    Handles holidays and half-days via pandas_market_calendars XNYS.
+    Schedule close times are in UTC; comparison is done in UTC.
+    """
+    import pandas_market_calendars as mcal
+    import pytz
+    from datetime import timedelta, datetime as _dt
+
+    et = pytz.timezone("America/New_York")
+    utc = pytz.utc
+
+    if now is None:
+        now_dt = _dt.now(tz=et)
+    elif isinstance(now, _dt):
+        now_dt = now.astimezone(et) if now.tzinfo else et.localize(now)
+    else:
+        # bare date — treat as end of that day in ET
+        now_dt = et.localize(_dt(now.year, now.month, now.day, 23, 59))
+
+    today = now_dt.date()
+    now_utc = now_dt.astimezone(utc)
+
+    cal = mcal.get_calendar("XNYS")
+    sched = cal.schedule(start_date=str(today - timedelta(days=14)), end_date=str(today))
+    if sched.empty:
+        return today - timedelta(days=1)
+
+    # Walk backwards; market_close is a UTC pd.Timestamp
+    for idx in reversed(range(len(sched))):
+        row = sched.iloc[idx]
+        session_date = row.name.date()
+        close_ts = row["market_close"]
+        if hasattr(close_ts, "tzinfo") and close_ts.tzinfo is None:
+            close_ts = utc.localize(close_ts.to_pydatetime())
+        elif hasattr(close_ts, "to_pydatetime"):
+            close_ts = close_ts.to_pydatetime().astimezone(utc)
+        if now_utc >= close_ts:
+            return session_date
+
+    return sched.index[0].date()
+
+
 # ── Context factory (E2.4) ────────────────────────────────────────────────────
 
 def _make_quality_info(ticker: str) -> QualityInfo:
@@ -323,15 +433,25 @@ def run_scan(
     verbose: bool = False,
     capture_all: bool = True,
     history_provider=None,
+    attach_risk: bool = True,
+    compute_conf: bool = True,
+    account_size: float = 6500.0,
+    risk_pct: float = 0.01,
+    max_position: float = 650.0,
 ) -> pd.DataFrame:
     """Evaluate each ticker with strategy_fn and return a sorted DataFrame.
 
     Live mode (as_of=None): refreshes universe cache first.
     history_provider: callable(ticker, end) -> df|None; defaults to data_store.get_history.
     No sleeps in this loop — they live in refresh_universe.
+    attach_risk: call targets.attach_risk() on every result.
+    compute_conf: compute confidence rating and ath_zone column.
     """
     from dataclasses import asdict
     from scanner.data_store import get_history, refresh_universe
+    from scanner.regime import market_regime as _market_regime, ath_zone as _ath_zone
+    from scanner.regime import compute_confidence as _compute_confidence
+    import scanner.targets as _targets
 
     if history_provider is None:
         history_provider = lambda t, end=None: get_history(t, end=end)
@@ -352,8 +472,48 @@ def run_scan(
         if df is None:
             continue
         result = strategy_fn(ticker, df, ctx, verbose=verbose)
-        if result is not None:
-            rows.append(asdict(result))
+        if result is None:
+            continue
+
+        if attach_risk:
+            try:
+                result = _targets.attach_risk(result, df)
+            except Exception:
+                pass
+
+        if compute_conf and result.suggested_stop is not None and result.risk_reward is not None:
+            try:
+                from scanner.strategies.pullback import PullbackResult
+                regime = _market_regime(ctx.market_data)
+                _, _, zone_label = _ath_zone(ticker, result.close, end=ctx.as_of)
+                obstacles, _ = _targets.count_resistance_obstacles(
+                    df, result.close,
+                    result.suggested_target if result.suggested_target else result.close * 1.10
+                )
+                sma_slope_val = _sma_slope(df)
+                macd_val = _macd_bullish(df)
+                weekly_aligned = False
+                if isinstance(result, PullbackResult):
+                    weekly_aligned = result.weekly_above_30ma
+                elif ctx.weekly is not None and len(ctx.weekly) >= 35:
+                    wma = ctx.weekly["Close"].rolling(WEEKLY_MA_PERIOD).mean()
+                    weekly_aligned = bool(ctx.weekly["Close"].iloc[-1] > wma.iloc[-1])
+                conf = _compute_confidence(
+                    score=result.score,
+                    adx=result.adx,
+                    weekly_aligned=weekly_aligned,
+                    market_regime_str=regime,
+                    obstacles=obstacles,
+                    rr=result.risk_reward,
+                    sma_slope=sma_slope_val,
+                    macd_bullish=macd_val,
+                    ath_zone_label=zone_label,
+                )
+                result = dataclasses.replace(result, confidence=conf)
+            except Exception:
+                pass
+
+        rows.append(asdict(result))
 
     if not rows:
         return pd.DataFrame()

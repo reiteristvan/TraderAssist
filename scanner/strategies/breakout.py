@@ -59,6 +59,13 @@ class BreakoutResult:
     gates_total: int
     as_of: date
     days_to_earnings: Optional[int]
+    # E4.1 — populated by attach_risk(); None until then
+    suggested_stop: Optional[float] = None
+    suggested_target: Optional[float] = None
+    risk_reward: Optional[float] = None
+    atr: Optional[float] = None
+    # E4.3 — populated by run_scan(); None until then
+    confidence: Optional[str] = None
 
 
 def evaluate(ticker: str, df: pd.DataFrame, ctx: EvalContext,
