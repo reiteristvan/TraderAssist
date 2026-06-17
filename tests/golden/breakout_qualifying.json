@@ -1,4 +1,5 @@
 {
+    "_sprint2_diff": "Full GateLog evaluate; E3.3 earnings gate adds 1 gate (total 12); new fields added",
     "ticker": "SYN",
     "close": 44.4,
     "pct_to_52w_high": 99.51,
@@ -9,5 +10,10 @@
     "market_cap": 2500000000.0,
     "profitable": true,
     "debt_equity": 50.0,
-    "score": 101.7
+    "score": 101.7,
+    "qualified": true,
+    "failed_gates": [],
+    "skipped_gates": [],
+    "gates_passed": 12,
+    "gates_total": 12
 }

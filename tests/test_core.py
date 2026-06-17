@@ -1,0 +1,137 @@
+"""Unit tests for scanner.core: GateLog (E2.1) and context factory (E2.4)."""
+import numpy as np
+import pandas as pd
+import pytest
+from datetime import date
+
+from scanner.core import GateLog, QualityInfo, EvalContext, _days_to_earnings
+
+
+# ── GateLog tests ─────────────────────────────────────────────────────────────
+
+def test_gate_counts():
+    log = GateLog("T")
+    log.gate("A", True)
+    log.gate("B", True)
+    log.gate("C", True)
+    log.gate("D", False)
+    assert log.gates_total == 4
+    assert log.gates_passed == 3
+    assert log.qualified is False
+    assert log.failed_gates == ["D"]
+
+
+def test_skip_excluded_from_total():
+    log = GateLog("T")
+    log.gate("A", True)
+    log.gate("B", False)
+    log.skip("C", "no data")
+    assert log.gates_total == 2
+    assert len(log.skipped_gates) == 1
+    assert log.skipped_gates == ["C"]
+    assert "C" not in log.failed_gates
+
+
+def test_verbose_output(capsys):
+    log = GateLog("TEST", verbose=True)
+    log.section("Section One")
+    log.gate("Gate A", True, "pass detail")
+    log.gate("Gate B", False, "fail detail")
+    log.skip("Gate C", "no data")
+    captured = capsys.readouterr()
+    expected = (
+        "\n=== TEST ===\n"
+        "Section One:\n"
+        "  ✓ Gate A (pass detail)\n"
+        "  ✗ Gate B (fail detail)\n"
+        "  – Gate C (skipped: no data)\n"
+    )
+    assert captured.out == expected
+
+
+def test_qualified_all_pass():
+    log = GateLog("T")
+    log.gate("X", True)
+    log.gate("Y", True)
+    assert log.qualified is True
+    assert log.failed_gates == []
+
+
+# ── Earnings parser tests ─────────────────────────────────────────────────────
+
+def _patch_calendar(monkeypatch, cal_value):
+    """Monkeypatch yf.Ticker(...).calendar to return cal_value."""
+    import yfinance as yf
+
+    class FakeTicker:
+        def __init__(self, *a, **kw):
+            self.calendar = cal_value
+        def __getattr__(self, name):
+            return None
+
+    monkeypatch.setattr(yf, "Ticker", FakeTicker)
+
+
+def test_earnings_parser_dict(monkeypatch):
+    as_of = date(2026, 1, 1)
+    future = pd.Timestamp("2026-01-11")
+    _patch_calendar(monkeypatch, {"Earnings Date": [future]})
+    result = _days_to_earnings("X", as_of)
+    assert result == 10
+
+
+def test_earnings_parser_dataframe(monkeypatch):
+    as_of = date(2026, 1, 1)
+    future = pd.Timestamp("2026-01-11")
+    cal_df = pd.DataFrame({"col": [future]}, index=["Earnings Date"])
+    _patch_calendar(monkeypatch, cal_df)
+    result = _days_to_earnings("X", as_of)
+    assert result == 10
+
+
+def test_earnings_parser_none(monkeypatch):
+    _patch_calendar(monkeypatch, None)
+    result = _days_to_earnings("X", date(2026, 1, 1))
+    assert result is None
+
+
+def test_earnings_parser_normal_future(monkeypatch):
+    as_of = date(2026, 1, 1)
+    future = pd.Timestamp("2026-1-20")
+    _patch_calendar(monkeypatch, {"Earnings Date": [future]})
+    result = _days_to_earnings("X", as_of)
+    assert result == 19
+
+
+# ── Historical context slicing test ──────────────────────────────────────────
+
+def test_historical_context_sliced(tmp_path, monkeypatch):
+    import scanner.data_store as ds
+    import scanner.core as core
+
+    monkeypatch.setattr(ds, "_CACHE_DIR", tmp_path)
+
+    # 400 rows ending 2026-06-15 so sliced to 2026-01-15 still has ≥220 rows
+    idx = pd.bdate_range(end=pd.Timestamp("2026-06-15"), periods=400)
+    closes = np.linspace(10.0, 30.0, 400)
+    full_df = pd.DataFrame({
+        "Open": closes - 0.1, "High": closes + 0.2, "Low": closes - 0.2,
+        "Close": closes, "Volume": np.full(400, 1_000_000.0),
+    }, index=idx)
+
+    # Write cache for SYN + all market symbols
+    for sym in ["SYN"] + ds._MARKET_SYMBOLS:
+        ds._write_cache(sym, full_df)
+
+    # Stub out quality (no network)
+    monkeypatch.setattr(core, "_make_quality_info",
+                        lambda t: QualityInfo(True, 2.5e9, 50.0, "Technology", 50e6))
+
+    as_of = date(2026, 1, 15)
+    ctx = core.make_context("SYN", as_of=as_of)
+
+    assert ctx is not None
+    assert ctx.as_of == as_of
+    assert ctx.days_to_earnings is None  # historical mode
+    for sym, df_sym in ctx.market_data.items():
+        assert df_sym.index.max().date() <= as_of, f"{sym} has data past as_of"

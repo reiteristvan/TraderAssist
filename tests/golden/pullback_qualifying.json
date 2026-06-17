@@ -1,6 +1,8 @@
 {
+    "_sprint2_diff": "failed_gates str->list; skipped_gates added; test uses scanner.strategies.pullback.evaluate",
     "qualified": true,
-    "failed_gates": "",
+    "failed_gates": [],
+    "skipped_gates": [],
     "gates_passed": 19,
     "gates_total": 19,
     "score": 125.2,

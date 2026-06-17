@@ -1,11 +1,9 @@
 {
-    "_perturbation": "breakout_jump=0.012 (raises RSI above RSI_RANGE max of 75); consol_drift=-0.0002, all other params at make_breakout_setup() defaults",
-    "result": null,
-    "prior_gates": {
-        "pct_to_high_ok": true,
-        "close_above_consol_high": true,
-        "vol_ratio_ok": true,
-        "trend_ok": true
-    },
-    "rsi": 78.6
+    "_sprint2_diff": "evaluate() now returns BreakoutResult (not None) for near-misses; qualified=False with failed_gates list",
+    "_perturbation": "breakout_jump=0.012 raises RSI above 75; only RSI gate fails",
+    "qualified": false,
+    "failed_gates": [
+        "RSI in breakout range"
+    ],
+    "gates_total": 12
 }
