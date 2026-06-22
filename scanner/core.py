@@ -306,8 +306,8 @@ def last_closed_session(now=None) -> date:
     elif isinstance(now, _dt):
         now_dt = now.astimezone(et) if now.tzinfo else et.localize(now)
     else:
-        # bare date — treat as end of that day in ET
-        now_dt = et.localize(_dt(now.year, now.month, now.day, 23, 59))
+        # bare date — treat as start of that day in ET (before market open)
+        now_dt = et.localize(_dt(now.year, now.month, now.day, 0, 0))
 
     today = now_dt.date()
     now_utc = now_dt.astimezone(utc)
