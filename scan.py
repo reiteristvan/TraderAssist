@@ -179,7 +179,99 @@ def cmd_refresh(args) -> None:
 # ── stub subcommands ──────────────────────────────────────────────────────────
 
 def cmd_backtest(args) -> None:
-    print("backtest: not yet implemented (E6). Run after Sprint 4.")
+    import json
+    from pathlib import Path
+    from datetime import date as _date
+    from dataclasses import asdict
+
+    import pandas as pd
+    from scanner.backtest import generate_signals
+    from scanner.simulate import simulate_trades
+    from scanner.report import render_report
+    from scanner.data_store import get_history
+
+    out_dir = Path(args.out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    tickers = _resolve_tickers(args)
+    start = _date.fromisoformat(args.start)
+    end = _date.fromisoformat(args.end)
+    time_stop = int(args.time_stop)
+    earn_gate = (args.earnings_gate == "on")
+
+    print(f"Generating signals: {args.strategy}, {len(tickers)} tickers, {start}→{end}")
+    signals = generate_signals(
+        universe=tickers,
+        start=start,
+        end=end,
+        strategy=args.strategy,
+        capture_near_misses=int(args.capture_near_misses),
+        earnings_gate=earn_gate,
+    )
+
+    # Persist signals
+    sig_dicts = []
+    for s in signals:
+        d = asdict(s)
+        d["date"] = str(d["date"])
+        d["failed_gates"] = ";".join(d["failed_gates"])
+        sig_dicts.append(d)
+    sig_df = pd.DataFrame(sig_dicts)
+    sig_df.to_parquet(out_dir / "signals.parquet", index=False)
+    print(f"  {len(signals)} signals ({sum(s.qualified for s in signals)} qualified)")
+
+    # Simulate
+    def _bars(ticker):
+        return get_history(ticker)
+
+    q_signals = [s for s in signals if s.qualified]
+    nm_signals = [s for s in signals if not s.qualified]
+    q_trades = simulate_trades(q_signals, _bars, entry=args.entry, time_stop=time_stop)
+    nm_trades = simulate_trades(nm_signals, _bars, entry=args.entry, time_stop=time_stop)
+
+    all_trade_dicts = []
+    for t in q_trades + nm_trades:
+        d = asdict(t)
+        for k in ("signal_date", "entry_date", "exit_date"):
+            if d[k] is not None:
+                d[k] = str(d[k])
+        d["failed_gates"] = ";".join(d["failed_gates"])
+        all_trade_dicts.append(d)
+    pd.DataFrame(all_trade_dicts).to_parquet(out_dir / "trades.parquet", index=False)
+
+    # Run meta
+    try:
+        import subprocess
+        git_hash = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            stderr=subprocess.DEVNULL,
+        ).decode().strip()
+    except Exception:
+        git_hash = "unknown"
+
+    run_meta = {
+        "strategy": args.strategy,
+        "universe_size": len(tickers),
+        "start": str(start),
+        "end": str(end),
+        "earnings_gate": args.earnings_gate,
+        "capture_near_misses": args.capture_near_misses,
+        "time_stop": time_stop,
+        "entry": args.entry,
+        "git_hash": git_hash,
+        "total_signals": len(signals),
+        "qualified_signals": sum(s.qualified for s in signals),
+    }
+    (out_dir / "run_meta.json").write_text(json.dumps(run_meta, indent=2))
+
+    # Report
+    md, json_data = render_report(signals, q_trades, nm_trades, run_meta)
+    (out_dir / "report.md").write_text(md, encoding="utf-8")
+    (out_dir / "report.json").write_text(json.dumps(json_data, indent=2, default=str))
+
+    print(f"  Trades simulated: {len(q_trades)} qualified, {len(nm_trades)} near-miss")
+    print(f"  Output → {out_dir}/")
+    print("    signals.parquet  trades.parquet  report.md  report.json  run_meta.json")
 
 
 def cmd_journal(args) -> None:
@@ -235,8 +327,26 @@ def build_parser() -> argparse.ArgumentParser:
     ref_p.add_argument("--full", action="store_true",
                        help="Force full re-fetch (period=max) for all tickers")
 
+    # ── backtest ──────────────────────────────────────────────────────────────
+    bt_p = sub.add_parser("backtest", help="Run historical backtest")
+    bt_p.add_argument("--strategy", choices=["pullback", "breakout"], default="pullback")
+    bt_grp = bt_p.add_mutually_exclusive_group()
+    bt_grp.add_argument("--file", metavar="PATH", help="Universe ticker file")
+    bt_grp.add_argument("--tickers", metavar="A,B,...")
+    bt_p.add_argument("--start", metavar="YYYY-MM-DD", required=True)
+    bt_p.add_argument("--end", metavar="YYYY-MM-DD", required=True)
+    bt_p.add_argument("--out", metavar="DIR", default="runs/latest",
+                      help="Output directory for artifacts")
+    bt_p.add_argument("--earnings-gate", choices=["on", "off"], default="on",
+                      help="Enable/disable earnings-proximity gate (default: on)")
+    bt_p.add_argument("--capture-near-misses", type=int, default=1, metavar="N",
+                      help="Capture near-misses failing at most N gates (default: 1)")
+    bt_p.add_argument("--time-stop", type=int, default=10, metavar="SESSIONS",
+                      help="Exit after N sessions if neither stop nor target hit (default: 10)")
+    bt_p.add_argument("--entry", choices=["next_open", "signal_close"], default="next_open",
+                      help="Entry price convention (default: next_open)")
+
     # ── stubs ─────────────────────────────────────────────────────────────────
-    sub.add_parser("backtest", help="(stub — E6)")
     sub.add_parser("journal",  help="(stub — E9)")
     sub.add_parser("universe", help="(stub — E10)")
     sub.add_parser("worker",   help="(stub — E12.6)")

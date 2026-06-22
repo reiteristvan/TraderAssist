@@ -190,12 +190,15 @@ def get_history(
 
 # ── E1.2 ─────────────────────────────────────────────────────────────────────
 
-def get_weekly(ticker: str, end: date | None = None) -> pd.DataFrame | None:
-    """Resample cached daily bars to weekly (W-FRI). Drops trailing partial week."""
-    daily = get_history(ticker, end=end)
-    if daily is None:
-        return None
+def resample_weekly(daily: pd.DataFrame) -> pd.DataFrame | None:
+    """Resample a daily OHLCV DataFrame to W-FRI weekly bars in-memory.
 
+    Drops the trailing partial week (any weekly bar whose Friday close date
+    is beyond the last daily bar). Shared by get_weekly() and the backtest
+    context builder which works from pre-loaded frames.
+    """
+    if daily is None or daily.empty:
+        return None
     weekly = daily.resample("W-FRI").agg(
         Open=("Open", "first"),
         High=("High", "max"),
@@ -203,11 +206,17 @@ def get_weekly(ticker: str, end: date | None = None) -> pd.DataFrame | None:
         Close=("Close", "last"),
         Volume=("Volume", "sum"),
     ).dropna(subset=["Close"])
-
     if len(weekly) > 0 and weekly.index[-1] > daily.index[-1]:
         weekly = weekly.iloc[:-1]
-
     return weekly if not weekly.empty else None
+
+
+def get_weekly(ticker: str, end: date | None = None) -> pd.DataFrame | None:
+    """Resample cached daily bars to weekly (W-FRI). Drops trailing partial week."""
+    daily = get_history(ticker, end=end)
+    if daily is None:
+        return None
+    return resample_weekly(daily)
 
 
 def get_ath(ticker: str, end: date | None = None) -> float | None:

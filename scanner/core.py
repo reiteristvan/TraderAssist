@@ -385,10 +385,11 @@ def _days_to_earnings(ticker: str, as_of: date) -> Optional[int]:
 def make_context(ticker: str, as_of: date | None = None) -> Optional[EvalContext]:
     """Build EvalContext for one ticker.
 
-    as_of=None (live): uses last date of cached history; fetches earnings.
-    Historical as_of: frames sliced to that date; days_to_earnings=None (E5.3).
+    as_of=None (live): uses last date of cached history; fetches earnings via yfinance.calendar.
+    Historical as_of: frames sliced to that date; days_to_earnings via earnings_store (E5.3).
     """
     from scanner.data_store import get_history, get_weekly, get_market_data
+    from scanner.earnings_store import days_to_earnings as _earn_days_hist
     df = get_history(ticker, end=as_of)
     if df is None:
         return None
@@ -396,7 +397,10 @@ def make_context(ticker: str, as_of: date | None = None) -> Optional[EvalContext
     market_data = get_market_data(end=as_of_date)
     weekly = get_weekly(ticker, end=as_of_date)
     quality = _make_quality_info(ticker)
-    days = _days_to_earnings(ticker, as_of_date) if as_of is None else None
+    if as_of is None:
+        days = _days_to_earnings(ticker, as_of_date)
+    else:
+        days = _earn_days_hist(ticker, as_of_date)
     return EvalContext(
         as_of=as_of_date, market_data=market_data,
         weekly=weekly, quality=quality, days_to_earnings=days,
@@ -407,6 +411,7 @@ def make_contexts(tickers: Iterable[str],
                   as_of: date | None = None) -> dict[str, EvalContext]:
     """Batch context builder — loads market data once."""
     from scanner.data_store import get_history, get_weekly, get_market_data
+    from scanner.earnings_store import days_to_earnings as _earn_days_hist
     market_data = get_market_data(end=as_of)
     result: dict[str, EvalContext] = {}
     for ticker in tickers:
@@ -416,7 +421,10 @@ def make_contexts(tickers: Iterable[str],
         as_of_date = as_of if as_of is not None else df.index[-1].date()
         weekly = get_weekly(ticker, end=as_of_date)
         quality = _make_quality_info(ticker)
-        days = _days_to_earnings(ticker, as_of_date) if as_of is None else None
+        if as_of is None:
+            days = _days_to_earnings(ticker, as_of_date)
+        else:
+            days = _earn_days_hist(ticker, as_of_date)
         result[ticker] = EvalContext(
             as_of=as_of_date, market_data=market_data,
             weekly=weekly, quality=quality, days_to_earnings=days,
