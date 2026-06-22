@@ -139,6 +139,22 @@ def cmd_scan(args) -> None:
         combined.to_csv(args.csv, index=False)
         print(f"\nSaved → {args.csv}")
 
+    # ── E9.2 — write to scanner.db unless --no-journal ────────────────────────
+    if not getattr(args, "no_journal", False):
+        try:
+            from scanner.journal import write_live_signals
+            from scanner.core import last_closed_session
+            run_date = str(as_of) if as_of else str(last_closed_session())
+            qualified_rows = combined[combined["qualified"]].to_dict("records")
+            if qualified_rows:
+                for strat in strategies:
+                    strat_rows = [r for r in qualified_rows if r.get("strategy") == strat]
+                    if strat_rows:
+                        n = write_live_signals(strat_rows, strat, run_date)
+                        print(f"  [{strat}] {n} signal(s) written to scanner.db (run_id={run_date})")
+        except Exception as exc:
+            print(f"  [journal] DB write skipped: {exc}")
+
 
 def _print_scan_results(df) -> None:
     import pandas as pd
@@ -273,13 +289,60 @@ def cmd_backtest(args) -> None:
     print(f"  Output → {out_dir}/")
     print("    signals.parquet  trades.parquet  report.md  report.json  run_meta.json")
 
+    # ── E9.4 — ingest into scanner.db ─────────────────────────────────────────
+    try:
+        from scanner.journal import write_backtest_to_db
+        from datetime import datetime as _dtime
+        run_meta["started_at"] = run_meta.get("started_at", _dtime.now().isoformat())
+        run_meta["finished_at"] = _dtime.now().isoformat()
+        write_backtest_to_db(
+            signals, q_trades, nm_trades,
+            run_id=run_meta.get("git_hash", "unknown") + "_" + run_meta["start"],
+            run_meta=run_meta,
+            metrics=json_data["metrics"],
+            biases=json_data["biases"],
+        )
+        print("  Backtest ingested into scanner.db")
+    except Exception as exc:
+        print(f"  [db] Ingest skipped: {exc}")
+
 
 def cmd_journal(args) -> None:
-    print("journal: not yet implemented (E9). Run after Sprint 5.")
+    subcmd = getattr(args, "journal_cmd", None)
+    if subcmd == "resolve":
+        from scanner.journal import resolve_open_signals
+        result = resolve_open_signals()
+        print(f"Resolved: {result['resolved']}  Open (in-flight): {result['open']}  "
+              f"Failures: {result['failures']}")
+    elif subcmd == "compare":
+        from scanner.journal import compare_with_backtest
+        result = compare_with_backtest(args.backtest)
+        print(f"\nLive (n={result['live_n']}):     "
+              f"E(R)={result['live_expectancy_r']}, W={result['live_win_rate']}")
+        print(f"Backtest {args.backtest} (n={result['backtest_n']}): "
+              f"E(R)={result['backtest_expectancy_r']}, W={result['backtest_win_rate']}")
+        if result.get("warning"):
+            print(f"\n⚠ {result['warning']}")
+    else:
+        print("Usage: scan.py journal {resolve|compare --backtest <run_id>}")
 
 
 def cmd_universe(args) -> None:
-    print("universe: not yet implemented (E10). Run after Sprint 5.")
+    subcmd = getattr(args, "universe_cmd", None)
+    if subcmd == "build":
+        from scanner.universe import build_universe
+        tickers = build_universe(args.index, out_path=Path(args.out))
+        print(f"Built {args.index.upper()} universe: {len(tickers)} tickers → {args.out}")
+    elif subcmd == "audit":
+        from scanner.universe import audit_universe
+        result = audit_universe(Path(args.file))
+        print(f"OK: {len(result['ok'])} tickers")
+        for t, err in result["failed"]:
+            print(f"  FAILED: {t}: {err}", file=sys.stderr)
+        if result["failed"]:
+            print(f"{len(result['failed'])} ticker(s) could not be fetched.", file=sys.stderr)
+    else:
+        print("Usage: scan.py universe {build --index sp500|sp400|sp600 --out FILE | audit --file FILE}")
 
 
 def cmd_worker(args) -> None:
@@ -346,10 +409,28 @@ def build_parser() -> argparse.ArgumentParser:
     bt_p.add_argument("--entry", choices=["next_open", "signal_close"], default="next_open",
                       help="Entry price convention (default: next_open)")
 
-    # ── stubs ─────────────────────────────────────────────────────────────────
-    sub.add_parser("journal",  help="(stub — E9)")
-    sub.add_parser("universe", help="(stub — E10)")
-    sub.add_parser("worker",   help="(stub — E12.6)")
+    # ── journal ───────────────────────────────────────────────────────────────
+    jnl_p = sub.add_parser("journal", help="Live signal journal (resolve, compare)")
+    jnl_sub = jnl_p.add_subparsers(dest="journal_cmd")
+    jnl_sub.add_parser("resolve",
+                       help="Resolve open live signals against subsequent bars")
+    cmp_p = jnl_sub.add_parser("compare",
+                                help="Compare live expectancy vs a backtest run")
+    cmp_p.add_argument("--backtest", metavar="RUN_ID", required=True,
+                       help="Backtest run_id to compare against")
+
+    # ── universe ──────────────────────────────────────────────────────────────
+    univ_p = sub.add_parser("universe", help="Universe builder and audit")
+    univ_sub = univ_p.add_subparsers(dest="universe_cmd")
+    bld_p = univ_sub.add_parser("build", help="Build a universe from an S&P index")
+    bld_p.add_argument("--index", choices=["sp500", "sp400", "sp600"], required=True)
+    bld_p.add_argument("--out", metavar="PATH", required=True,
+                       help="Output file path (e.g. universes/sp600.txt)")
+    aud_p = univ_sub.add_parser("audit", help="Audit a universe file for bad tickers")
+    aud_p.add_argument("--file", metavar="PATH", required=True)
+
+    # ── worker (stub — E12.6) ─────────────────────────────────────────────────
+    sub.add_parser("worker", help="(stub — E12.6)")
 
     return p
 

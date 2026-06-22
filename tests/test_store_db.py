@@ -1,0 +1,214 @@
+"""Tests for scanner.store_db — E9.1.
+
+Acceptance criteria:
+1. migrate() idempotent; schema_version row present.
+2. All SQL string literals live in store_db.py (grep — not tested here).
+3. Round-trip: write a Signal, read it back unchanged.
+"""
+from __future__ import annotations
+
+import json
+from datetime import date
+from pathlib import Path
+
+import pytest
+
+from scanner import store_db
+
+
+# ── fixtures ──────────────────────────────────────────────────────────────────
+
+@pytest.fixture
+def db(tmp_path):
+    """In-memory DB at a temp path; migrated once."""
+    path = tmp_path / "test.db"
+    store_db.migrate(db_path=path)
+    conn = store_db.get_connection(path)
+    yield conn
+    conn.close()
+
+
+def _sample_signal(
+    ticker="AAPL",
+    sig_date="2026-01-05",
+    strategy="pullback",
+    source="live",
+    run_id="2026-01-05",
+) -> dict:
+    return {
+        "date": sig_date,
+        "ticker": ticker,
+        "strategy": strategy,
+        "source": source,
+        "run_id": run_id,
+        "score": 65.0,
+        "confidence": "MEDIUM",
+        "stop": 90.0,
+        "target": 110.0,
+        "atr": 1.5,
+        "qualified": 1,
+        "failed_gates": "",
+        "close": 100.0,
+    }
+
+
+def _sample_run(run_id="bt_2026") -> dict:
+    return {
+        "run_id": run_id,
+        "kind": "backtest",
+        "strategy": "pullback",
+        "universe": "500",
+        "params_json": json.dumps({"start": "2023-01-01"}),
+        "started_at": "2026-06-22T10:00:00",
+        "finished_at": "2026-06-22T10:30:00",
+        "signal_count": 42,
+    }
+
+
+# ── E9.1 AC1 — migrate() is idempotent ───────────────────────────────────────
+
+def test_migrate_idempotent(tmp_path):
+    path = tmp_path / "test.db"
+    store_db.migrate(db_path=path)
+    store_db.migrate(db_path=path)  # second call must not raise
+    store_db.migrate(db_path=path)  # third call too
+    conn = store_db.get_connection(path)
+    ver = store_db.get_schema_version(conn)
+    conn.close()
+    assert ver == 1
+
+
+def test_migrate_schema_version_present(db):
+    assert store_db.get_schema_version(db) == 1
+
+
+# ── E9.1 AC3 — round-trip signal ─────────────────────────────────────────────
+
+def test_signal_round_trip(db):
+    sig = _sample_signal()
+    store_db.insert_signal(db, sig)
+
+    row = db.execute(
+        "SELECT * FROM signals WHERE ticker = 'AAPL' AND date = '2026-01-05'"
+    ).fetchone()
+    assert row is not None
+    assert row["ticker"] == "AAPL"
+    assert float(row["score"]) == pytest.approx(65.0)
+    assert float(row["stop"]) == pytest.approx(90.0)
+    assert float(row["target"]) == pytest.approx(110.0)
+    assert row["confidence"] == "MEDIUM"
+    assert row["source"] == "live"
+    assert row["qualified"] == 1
+
+
+def test_insert_or_ignore_no_duplicate(db):
+    """INSERT OR IGNORE: same unique key does not raise or duplicate."""
+    sig = _sample_signal()
+    store_db.insert_signal(db, sig)
+    store_db.insert_signal(db, sig)  # second insert must be silently ignored
+    count = db.execute("SELECT COUNT(*) FROM signals").fetchone()[0]
+    assert count == 1
+
+
+def test_unique_key_different_run_id(db):
+    """Different run_id → different rows (same date/ticker/strategy/source)."""
+    sig1 = _sample_signal(run_id="2026-01-05")
+    sig2 = _sample_signal(run_id="2026-01-06")
+    store_db.insert_signal(db, sig1)
+    store_db.insert_signal(db, sig2)
+    count = db.execute("SELECT COUNT(*) FROM signals").fetchone()[0]
+    assert count == 2
+
+
+# ── unresolved / outcome update ───────────────────────────────────────────────
+
+def test_get_unresolved_live_signals(db):
+    store_db.insert_signal(db, _sample_signal())
+    rows = store_db.get_unresolved_live_signals(db)
+    assert len(rows) == 1
+    assert rows[0]["exit_reason"] is None
+
+
+def test_update_signal_outcome(db):
+    store_db.insert_signal(db, _sample_signal())
+    row = db.execute("SELECT id FROM signals").fetchone()
+    outcome = {
+        "outcome_checked_at": "2026-01-16T12:00:00",
+        "entry_px": 101.0,
+        "exit_px": 110.0,
+        "exit_reason": "target",
+        "r_multiple": 0.9,
+        "holding_days": 7,
+        "flags": json.dumps({}),
+    }
+    store_db.update_signal_outcome(db, row["id"], outcome)
+
+    updated = db.execute("SELECT * FROM signals WHERE id = ?", (row["id"],)).fetchone()
+    assert updated["exit_reason"] == "target"
+    assert float(updated["r_multiple"]) == pytest.approx(0.9)
+    assert updated["holding_days"] == 7
+
+
+def test_resolved_signal_not_in_unresolved(db):
+    store_db.insert_signal(db, _sample_signal())
+    row = db.execute("SELECT id FROM signals").fetchone()
+    store_db.update_signal_outcome(db, row["id"], {
+        "outcome_checked_at": "2026-01-16",
+        "entry_px": 100.0, "exit_px": 110.0,
+        "exit_reason": "target", "r_multiple": 1.0,
+        "holding_days": 10, "flags": "{}",
+    })
+    unresolved = store_db.get_unresolved_live_signals(db)
+    assert len(unresolved) == 0
+
+
+# ── runs ──────────────────────────────────────────────────────────────────────
+
+def test_insert_run(db):
+    store_db.insert_run(db, _sample_run())
+    runs = store_db.get_backtest_runs(db)
+    assert len(runs) == 1
+    assert runs[0]["run_id"] == "bt_2026"
+    assert runs[0]["kind"] == "backtest"
+
+
+def test_insert_run_ignore_duplicate(db):
+    store_db.insert_run(db, _sample_run())
+    store_db.insert_run(db, _sample_run())  # duplicate run_id
+    runs = store_db.get_backtest_runs(db)
+    assert len(runs) == 1
+
+
+# ── backtest_reports ──────────────────────────────────────────────────────────
+
+def test_insert_and_get_backtest_report(db):
+    store_db.insert_run(db, _sample_run("bt_001"))
+    metrics = {"count": 10, "win_rate": 0.5, "expectancy_r": 0.3}
+    biases = ["survivorship", "look-ahead"]
+    store_db.insert_backtest_report(db, "bt_001", metrics, biases)
+
+    report = store_db.get_run_report(db, "bt_001")
+    assert report is not None
+    assert report["metrics"]["count"] == 10
+    assert report["metrics"]["win_rate"] == pytest.approx(0.5)
+    assert "survivorship" in report["biases"]
+
+
+def test_get_run_report_missing(db):
+    assert store_db.get_run_report(db, "nonexistent") is None
+
+
+# ── batch insert ──────────────────────────────────────────────────────────────
+
+def test_insert_signals_batch(db):
+    sigs = [_sample_signal(ticker="A"), _sample_signal(ticker="B")]
+    n = store_db.insert_signals_batch(db, sigs)
+    assert n == 2
+    count = db.execute("SELECT COUNT(*) FROM signals").fetchone()[0]
+    assert count == 2
+
+
+def test_insert_signals_batch_ignore_dups(db):
+    sigs = [_sample_signal(ticker="A")] * 3  # same unique key 3×
+    n = store_db.insert_signals_batch(db, sigs)
+    assert n == 1  # only first inserted

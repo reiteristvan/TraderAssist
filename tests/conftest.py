@@ -1,17 +1,39 @@
-"""Shared pytest fixtures: synthetic OHLCV factories (E0.2).
+"""Shared pytest fixtures: synthetic OHLCV factories (E0.2) and autouse guards.
 
-These are plain callable factory functions (not pytest fixture-injected
-objects) per CLAUDE.md's calling convention: call them directly with
-parens/args, e.g. ``make_pullback_setup()``, ``make_quality()``.
+Factory functions are plain callables (not pytest-injected) — call them with
+parens, e.g. ``make_pullback_setup()``, ``make_quality()``.
 
 All series are generated from seeded ``numpy.random.default_rng`` calls so
 every factory is fully deterministic between runs.
 """
 import numpy as np
 import pandas as pd
+import pytest
 
 import pullback_filter as pf
 import breakout_filter as bf
+
+
+# ── E11.1 — block network in all tests ───────────────────────────────────────
+
+@pytest.fixture(autouse=True)
+def _block_yfinance_network(monkeypatch):
+    """Prove the only network seams are data_store.py and earnings_store.py.
+
+    Tests in those modules override this with their own mocks. Any test that
+    accidentally reaches yfinance will get a RuntimeError instead of a slow
+    network call or a silent pass.
+    """
+    import yfinance as yf
+
+    def _blocked(*args, **kwargs):
+        raise RuntimeError(
+            "yfinance network call blocked in tests — mock explicitly "
+            "(see data_store/earnings_store tests for examples)"
+        )
+
+    monkeypatch.setattr(yf, "Ticker", _blocked)
+    monkeypatch.setattr(yf, "download", _blocked)
 
 
 def bdate_index(n, end="2026-06-15"):

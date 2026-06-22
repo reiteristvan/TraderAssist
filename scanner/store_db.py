@@ -1,5 +1,229 @@
-"""E9 — Owns ALL SQL; data/scanner.db (SQLite, Postgres-swappable).
+"""E9.1 — Owns ALL SQL; data/scanner.db (SQLite, Postgres-swappable).
 
-Single module owning the DB connection and every SQL statement: signals,
-runs, and backtest_reports tables, plus migrate(). See CLAUDE.md EPIC E9.1.
+Single module with the DB connection and every SQL statement. Tables use
+portable types only (TEXT/INTEGER/REAL, ISO-8601 date strings). No ORM.
+See CLAUDE.md EPIC E9.1.
 """
+from __future__ import annotations
+
+import json
+import sqlite3
+from pathlib import Path
+from typing import Any, Optional
+
+_DEFAULT_DB = Path("data/scanner.db")
+_SCHEMA_VERSION = 1
+
+# ── DDL ───────────────────────────────────────────────────────────────────────
+
+_DDL = """
+CREATE TABLE IF NOT EXISTS schema_version (
+    version INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS runs (
+    run_id     TEXT PRIMARY KEY,
+    kind       TEXT NOT NULL,
+    strategy   TEXT,
+    universe   TEXT,
+    params_json TEXT,
+    started_at  TEXT,
+    finished_at TEXT,
+    signal_count INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS signals (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    date        TEXT NOT NULL,
+    ticker      TEXT NOT NULL,
+    strategy    TEXT NOT NULL,
+    source      TEXT NOT NULL,
+    run_id      TEXT NOT NULL,
+    score       REAL,
+    confidence  TEXT,
+    stop        REAL,
+    target      REAL,
+    atr         REAL,
+    qualified   INTEGER NOT NULL DEFAULT 1,
+    failed_gates TEXT,
+    close       REAL,
+    outcome_checked_at TEXT,
+    entry_px    REAL,
+    exit_px     REAL,
+    exit_reason TEXT,
+    r_multiple  REAL,
+    holding_days INTEGER,
+    flags       TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (date, ticker, strategy, source, run_id)
+);
+
+CREATE TABLE IF NOT EXISTS backtest_reports (
+    run_id       TEXT PRIMARY KEY REFERENCES runs(run_id),
+    metrics_json TEXT,
+    biases_json  TEXT
+);
+"""
+
+# ── Connection ────────────────────────────────────────────────────────────────
+
+def get_connection(db_path: Optional[Path] = None) -> sqlite3.Connection:
+    """Return a sqlite3 connection with foreign-key enforcement enabled."""
+    path = Path(db_path) if db_path else _DEFAULT_DB
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(path))
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
+
+
+def migrate(db_path: Optional[Path] = None, conn: Optional[sqlite3.Connection] = None) -> None:
+    """Create tables and schema_version if absent. Idempotent."""
+    own = conn is None
+    if own:
+        conn = get_connection(db_path)
+    try:
+        conn.executescript(_DDL)
+        ver = conn.execute("SELECT version FROM schema_version").fetchone()
+        if ver is None:
+            conn.execute("INSERT INTO schema_version (version) VALUES (?)", (_SCHEMA_VERSION,))
+        conn.commit()
+    finally:
+        if own:
+            conn.close()
+
+
+def get_schema_version(conn: sqlite3.Connection) -> int:
+    row = conn.execute("SELECT version FROM schema_version").fetchone()
+    return int(row["version"]) if row else 0
+
+
+# ── runs ──────────────────────────────────────────────────────────────────────
+
+def insert_run(conn: sqlite3.Connection, run: dict) -> None:
+    conn.execute(
+        """INSERT OR IGNORE INTO runs
+           (run_id, kind, strategy, universe, params_json, started_at, finished_at, signal_count)
+           VALUES (:run_id, :kind, :strategy, :universe, :params_json,
+                   :started_at, :finished_at, :signal_count)""",
+        run,
+    )
+    conn.commit()
+
+
+def update_run_finished(conn: sqlite3.Connection, run_id: str,
+                        finished_at: str, signal_count: int) -> None:
+    conn.execute(
+        "UPDATE runs SET finished_at = ?, signal_count = ? WHERE run_id = ?",
+        (finished_at, signal_count, run_id),
+    )
+    conn.commit()
+
+
+def get_backtest_runs(conn: sqlite3.Connection) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM runs WHERE kind = 'backtest' ORDER BY started_at DESC"
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ── signals ───────────────────────────────────────────────────────────────────
+
+def insert_signal(conn: sqlite3.Connection, sig: dict) -> None:
+    conn.execute(
+        """INSERT OR IGNORE INTO signals
+           (date, ticker, strategy, source, run_id, score, confidence,
+            stop, target, atr, qualified, failed_gates, close)
+           VALUES (:date, :ticker, :strategy, :source, :run_id, :score, :confidence,
+                   :stop, :target, :atr, :qualified, :failed_gates, :close)""",
+        sig,
+    )
+    conn.commit()
+
+
+def insert_signals_batch(conn: sqlite3.Connection, sigs: list[dict]) -> int:
+    """Insert a batch of signals. Returns count inserted (ignores duplicates)."""
+    inserted = 0
+    for sig in sigs:
+        cur = conn.execute(
+            """INSERT OR IGNORE INTO signals
+               (date, ticker, strategy, source, run_id, score, confidence,
+                stop, target, atr, qualified, failed_gates, close)
+               VALUES (:date, :ticker, :strategy, :source, :run_id, :score, :confidence,
+                       :stop, :target, :atr, :qualified, :failed_gates, :close)""",
+            sig,
+        )
+        inserted += cur.rowcount
+    conn.commit()
+    return inserted
+
+
+def get_unresolved_live_signals(conn: sqlite3.Connection) -> list[dict]:
+    """Live signals without an outcome (exit_reason IS NULL, source='live')."""
+    rows = conn.execute(
+        """SELECT * FROM signals
+           WHERE source = 'live' AND qualified = 1 AND exit_reason IS NULL
+           ORDER BY date ASC""",
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_live_resolved_signals(conn: sqlite3.Connection) -> list[dict]:
+    """Live signals that have been resolved (exit_reason IS NOT NULL)."""
+    rows = conn.execute(
+        """SELECT * FROM signals
+           WHERE source = 'live' AND qualified = 1 AND exit_reason IS NOT NULL""",
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def update_signal_outcome(conn: sqlite3.Connection, signal_id: int, outcome: dict) -> None:
+    conn.execute(
+        """UPDATE signals SET
+               outcome_checked_at = :outcome_checked_at,
+               entry_px    = :entry_px,
+               exit_px     = :exit_px,
+               exit_reason = :exit_reason,
+               r_multiple  = :r_multiple,
+               holding_days = :holding_days,
+               flags       = :flags
+           WHERE id = :id""",
+        {**outcome, "id": signal_id},
+    )
+    conn.commit()
+
+
+# ── backtest_reports ──────────────────────────────────────────────────────────
+
+def insert_backtest_report(conn: sqlite3.Connection, run_id: str,
+                           metrics: dict, biases: list) -> None:
+    conn.execute(
+        """INSERT OR REPLACE INTO backtest_reports (run_id, metrics_json, biases_json)
+           VALUES (?, ?, ?)""",
+        (run_id, json.dumps(metrics), json.dumps(biases)),
+    )
+    conn.commit()
+
+
+def get_signal_id_for_trade(conn: sqlite3.Connection,
+                            signal_date: str, ticker: str, run_id: str) -> Optional[int]:
+    """Look up signal id by date/ticker/run_id (source='backtest')."""
+    row = conn.execute(
+        "SELECT id FROM signals WHERE date=? AND ticker=? AND source='backtest' AND run_id=?",
+        (signal_date, ticker, run_id),
+    ).fetchone()
+    return int(row["id"]) if row else None
+
+
+def get_run_report(conn: sqlite3.Connection, run_id: str) -> Optional[dict]:
+    row = conn.execute(
+        "SELECT * FROM backtest_reports WHERE run_id = ?", (run_id,)
+    ).fetchone()
+    if row is None:
+        return None
+    d = dict(row)
+    if d.get("metrics_json"):
+        d["metrics"] = json.loads(d["metrics_json"])
+    if d.get("biases_json"):
+        d["biases"] = json.loads(d["biases_json"])
+    return d
