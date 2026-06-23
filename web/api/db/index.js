@@ -98,7 +98,7 @@ function getLatestSignals({ strategy, minScore, confidence } = {}) {
   return db.prepare(
     'SELECT * FROM signals WHERE ' + conditions.join(' AND ') +
     ' ORDER BY score DESC'
-  ).all(...params);
+  ).all(...params).map(_parseSignalJson);
 }
 
 function getSignalById(id) {
@@ -138,7 +138,7 @@ function getSignalHistory({ from, to, status, strategy } = {}) {
   return db.prepare(
     'SELECT * FROM signals WHERE ' + conditions.join(' AND ') +
     ' ORDER BY date DESC'
-  ).all(...params);
+  ).all(...params).map(_parseSignalJson);
 }
 
 function getRuns(kind) {
@@ -183,17 +183,56 @@ function getSummaryStats() {
   ).get().n;
 
   const lastScan = db.prepare(
-    "SELECT started_at, signal_count FROM runs WHERE kind='scan' ORDER BY started_at DESC LIMIT 1"
+    "SELECT run_id, started_at, finished_at, signal_count, strategy " +
+    "FROM runs WHERE kind='scan' ORDER BY started_at DESC LIMIT 1"
   ).get() || null;
 
-  const tonightCount = db.prepare(
-    "SELECT COUNT(*) AS n FROM signals WHERE source='live' AND qualified=1 AND run_id = ?",
-  ).get(lastScan ? lastScan.run_id : '').n;
+  const tonightCount = lastScan
+    ? db.prepare(
+        "SELECT COUNT(*) AS n FROM signals WHERE source='live' AND qualified=1 AND run_id = ?"
+      ).get(lastScan.run_id).n
+    : 0;
 
   return {
     open_positions: openPositions,
-    signals_tonight: lastScan ? tonightCount : 0,
-    last_scan_time: lastScan ? lastScan.started_at : null,
+    signals_tonight: tonightCount,
+    last_scan_run: lastScan || null,
+  };
+}
+
+function getJournalCompare(runId) {
+  const db = getDb();
+  if (!db) return null;
+
+  const report = getBacktestReport(runId);
+  if (!report) return null;
+
+  const btMetrics = JSON.parse(report.metrics_json || '{}');
+  const liveRows = db.prepare(
+    "SELECT r_multiple FROM signals " +
+    "WHERE source='live' AND qualified=1 AND exit_reason IS NOT NULL AND r_multiple IS NOT NULL"
+  ).all();
+
+  const liveN = liveRows.length;
+  let liveExpectancy = null;
+  let liveWinRate = null;
+
+  if (liveN > 0) {
+    liveExpectancy = liveRows.reduce((s, r) => s + r.r_multiple, 0) / liveN;
+    liveWinRate = liveRows.filter(r => r.r_multiple > 0).length / liveN;
+  }
+
+  return {
+    live_n: liveN,
+    live_expectancy_r: liveExpectancy !== null ? Math.round(liveExpectancy * 1000) / 1000 : null,
+    live_win_rate: liveWinRate !== null ? Math.round(liveWinRate * 1000) / 1000 : null,
+    backtest_run_id: runId,
+    backtest_n: btMetrics.count || null,
+    backtest_expectancy_r: btMetrics.expectancy_r != null ? btMetrics.expectancy_r : null,
+    backtest_win_rate: btMetrics.win_rate != null ? btMetrics.win_rate : null,
+    warning: liveN < 30
+      ? `Live sample (n=${liveN}) not yet statistically meaningful — need ≥30 resolved signals`
+      : null,
   };
 }
 
@@ -211,4 +250,5 @@ module.exports = {
   getBacktestReport,
   getResolvedLiveSignals,
   getSummaryStats,
+  getJournalCompare,
 };

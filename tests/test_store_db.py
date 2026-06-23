@@ -75,11 +75,11 @@ def test_migrate_idempotent(tmp_path):
     conn = store_db.get_connection(path)
     ver = store_db.get_schema_version(conn)
     conn.close()
-    assert ver == 2
+    assert ver == 3
 
 
 def test_migrate_schema_version_present(db):
-    assert store_db.get_schema_version(db) == 2
+    assert store_db.get_schema_version(db) == 3
 
 
 # ── E9.1 AC3 — round-trip signal ─────────────────────────────────────────────
@@ -250,13 +250,14 @@ def test_migrate_v1_to_v2(tmp_path):
     conn.commit()
     conn.close()
 
-    # migrate() should upgrade to v2
+    # migrate() should upgrade to v3
     store_db.migrate(db_path=path)
     conn2 = store_db.get_connection(path)
-    assert store_db.get_schema_version(conn2) == 2
-    # Column must now exist
+    assert store_db.get_schema_version(conn2) == 3
+    # Both columns must now exist
     cols = [r[1] for r in conn2.execute("PRAGMA table_info(signals)").fetchall()]
     assert "gate_detail_json" in cols
+    assert "ath_zone" in cols
     conn2.close()
 
 

@@ -9,7 +9,7 @@ const os = require('os');
 // Must reset the cached db connection before changing DB_PATH
 const db = require('../db');
 
-function makeTmpDb(schemaVersion = 1, withScanRun = true) {
+function makeTmpDb(schemaVersion = 3, withScanRun = true) {
   const tmpFile = path.join(os.tmpdir(), `traderassist_test_${Date.now()}.db`);
   const conn = new Database(tmpFile);
 
@@ -31,6 +31,7 @@ function makeTmpDb(schemaVersion = 1, withScanRun = true) {
       source TEXT NOT NULL, run_id TEXT NOT NULL,
       score REAL, confidence TEXT, stop REAL, target REAL, atr REAL,
       qualified INTEGER NOT NULL DEFAULT 1, failed_gates TEXT, close REAL,
+        gate_detail_json TEXT, ath_zone TEXT,
       outcome_checked_at TEXT, entry_px REAL, exit_px REAL,
       exit_reason TEXT, r_multiple REAL, holding_days INTEGER, flags TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),

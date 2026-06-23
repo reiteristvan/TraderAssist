@@ -497,6 +497,7 @@ def run_scan(
             except Exception:
                 pass
 
+        zone_label: Optional[str] = None
         if compute_conf and result.suggested_stop is not None and result.risk_reward is not None:
             try:
                 from scanner.strategies.pullback import PullbackResult
@@ -529,7 +530,9 @@ def run_scan(
             except Exception:
                 pass
 
-        rows.append(asdict(result))
+        row = asdict(result)
+        row["ath_zone"] = zone_label
+        rows.append(row)
 
     if not rows:
         return pd.DataFrame()
