@@ -1,0 +1,22 @@
+.backtest-layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+.run-list { max-height: calc(100vh - 120px); overflow-y: auto; }
+.run-item {
+  padding: 12px 16px; cursor: pointer; border-bottom: 1px solid #1e1e3a;
+  transition: background 0.1s;
+}
+.run-item:hover { background: #1a1a2e; }
+.run-item.selected { background: #2d3a6b; }
+.run-id { font-weight: 600; font-size: 13px; color: #c0c0e0; }
+.run-meta { font-size: 11px; color: #606080; margin-top: 2px; }
+.detail-panel { min-height: 200px; }
+.bias-box {
+  background: #1a1a2a; border: 1px solid #2a2a4a; border-radius: 6px;
+  padding: 12px 16px; margin-top: 16px; font-size: 13px; color: #8090a0;
+}
+.bias-box ul { margin: 8px 0 0 16px; }
+.bias-box li { margin-bottom: 4px; }

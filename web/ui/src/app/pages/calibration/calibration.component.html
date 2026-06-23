@@ -1,0 +1,75 @@
+<div class="page-header">
+  <h1>Calibration</h1>
+  <span class="page-subtitle">Live vs backtest comparison</span>
+</div>
+
+<div class="card" style="display:flex; gap:12px; align-items:flex-end; padding:12px 16px; flex-wrap:wrap;">
+  <label>Compare live signals against backtest run
+    <select [(ngModel)]="selectedRunId" style="margin-left:8px; min-width:200px;">
+      <option value="">— select a run —</option>
+      <option *ngFor="let r of runs" [value]="r.run_id">
+        {{ r.run_id }} ({{ r.strategy }})
+      </option>
+    </select>
+  </label>
+  <button (click)="loadCompare()" [disabled]="!selectedRunId || loading"
+    style="padding:7px 16px; background:#2d3a6b; color:#e0e0f0; border:1px solid #4a5a9b;
+           border-radius:4px; cursor:pointer; font-size:13px;">
+    Compare
+  </button>
+</div>
+
+<div *ngIf="runsLoading" class="loading">Loading runs…</div>
+<div *ngIf="!runsLoading && runs.length === 0" class="empty-state">
+  <strong>No backtest runs found.</strong>
+  <p>Run a backtest first to enable live calibration.</p>
+</div>
+
+<div *ngIf="loading" class="loading">Loading comparison…</div>
+
+<ng-container *ngIf="compare && !loading">
+  <!-- Warning banner — shown prominently when n < 30 -->
+  <div *ngIf="compare.warning" class="warning-box">
+    <strong>⚠ Statistical caution:</strong> {{ compare.warning }}
+  </div>
+
+  <div class="compare-grid">
+    <!-- Live -->
+    <div class="card">
+      <h2>Live signals</h2>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-value">{{ compare.live_n }}</div>
+          <div class="stat-label">Resolved signals</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{{ fmt(compare.live_win_rate) }}</div>
+          <div class="stat-label">Win rate</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{{ fmtR(compare.live_expectancy_r) }}</div>
+          <div class="stat-label">Expectancy</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Backtest -->
+    <div class="card">
+      <h2>Backtest ({{ compare.backtest_run_id }})</h2>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-value">{{ compare.backtest_n ?? '—' }}</div>
+          <div class="stat-label">Trades</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{{ fmt(compare.backtest_win_rate) }}</div>
+          <div class="stat-label">Win rate</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{{ fmtR(compare.backtest_expectancy_r) }}</div>
+          <div class="stat-label">Expectancy</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</ng-container>

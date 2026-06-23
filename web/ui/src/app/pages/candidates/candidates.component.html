@@ -1,0 +1,72 @@
+<div class="page-header">
+  <h1>Candidates</h1>
+  <span class="page-subtitle">Tonight's qualified setups</span>
+</div>
+
+<!-- Filters -->
+<div class="card" style="display:flex; gap:12px; flex-wrap:wrap; align-items:center; padding:12px 16px;">
+  <label>Strategy
+    <select [(ngModel)]="filterStrategy" (change)="load()" style="margin-left:6px;">
+      <option value="">All</option>
+      <option value="pullback">Pullback</option>
+      <option value="breakout">Breakout</option>
+    </select>
+  </label>
+  <label>Confidence
+    <select [(ngModel)]="filterConfidence" (change)="load()" style="margin-left:6px;">
+      <option value="">All</option>
+      <option value="HIGH">High</option>
+      <option value="MEDIUM">Medium</option>
+      <option value="LOW">Low</option>
+    </select>
+  </label>
+  <label>Min score
+    <input type="number" [(ngModel)]="filterMinScore" (change)="load()"
+           placeholder="0" style="margin-left:6px; width:70px;">
+  </label>
+</div>
+
+<div *ngIf="loading" class="loading">Loading…</div>
+
+<div *ngIf="!loading && signals.length === 0" class="empty-state">
+  <strong>No candidates match the current filters.</strong>
+  <p>Try relaxing filters or run the scanner to generate fresh signals.</p>
+</div>
+
+<div class="card" style="padding:0; overflow:hidden;" *ngIf="!loading && signals.length > 0">
+  <table>
+    <thead>
+      <tr>
+        <th (click)="sort('ticker')" style="cursor:pointer">Ticker</th>
+        <th (click)="sort('strategy')" style="cursor:pointer">Strategy</th>
+        <th (click)="sort('score')" style="cursor:pointer">Score ↕</th>
+        <th (click)="sort('confidence')" style="cursor:pointer">Conf</th>
+        <th>Entry</th>
+        <th>Stop</th>
+        <th>Target</th>
+        <th>R/R</th>
+        <th>ATH zone</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let s of sorted">
+        <td><a [routerLink]="['/diagnosis', s.id]">{{ s.ticker }}</a></td>
+        <td>{{ s.strategy }}</td>
+        <td>{{ s.score | number:'1.0-0' }}</td>
+        <td>
+          <span class="badge"
+            [class.badge-high]="s.confidence === 'HIGH'"
+            [class.badge-medium]="s.confidence === 'MEDIUM'"
+            [class.badge-low]="s.confidence === 'LOW'">
+            {{ s.confidence ?? '—' }}
+          </span>
+        </td>
+        <td>{{ s.close | number:'1.2-2' }}</td>
+        <td>{{ s.stop  | number:'1.2-2' }}</td>
+        <td>{{ s.target | number:'1.2-2' }}</td>
+        <td>{{ rr(s) }}</td>
+        <td>{{ s.ath_zone ?? '—' }}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>

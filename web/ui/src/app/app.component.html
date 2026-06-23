@@ -1,0 +1,15 @@
+<div class="app-shell">
+  <nav class="sidebar">
+    <div class="brand">TraderAssist</div>
+    <ul>
+      <li><a routerLink="/dashboard"   routerLinkActive="active"><span class="icon">⬡</span> Dashboard</a></li>
+      <li><a routerLink="/candidates"  routerLinkActive="active"><span class="icon">◎</span> Candidates</a></li>
+      <li><a routerLink="/journal"     routerLinkActive="active"><span class="icon">☰</span> Journal</a></li>
+      <li><a routerLink="/backtests"   routerLinkActive="active"><span class="icon">△</span> Backtests</a></li>
+      <li><a routerLink="/calibration" routerLinkActive="active"><span class="icon">⊙</span> Calibration</a></li>
+    </ul>
+  </nav>
+  <main class="content">
+    <router-outlet></router-outlet>
+  </main>
+</div>

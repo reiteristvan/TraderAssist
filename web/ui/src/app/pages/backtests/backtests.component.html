@@ -1,0 +1,72 @@
+<div class="page-header">
+  <h1>Backtests</h1>
+  <span class="page-subtitle">Historical performance runs</span>
+</div>
+
+<div class="backtest-layout">
+  <!-- Run list -->
+  <div class="run-list card" style="padding:0; overflow:hidden;">
+    <div *ngIf="loading" class="loading" style="padding:16px;">Loading…</div>
+    <div *ngIf="!loading && runs.length === 0" class="empty-state" style="padding:24px;">
+      <strong>No backtest runs yet.</strong>
+      <p>Run <code>python scan.py backtest</code> to generate results.</p>
+    </div>
+    <div *ngFor="let r of runs" class="run-item"
+         [class.selected]="selectedRun?.run_id === r.run_id"
+         (click)="selectRun(r.run_id)">
+      <div class="run-id">{{ r.run_id }}</div>
+      <div class="run-meta">{{ r.strategy }} · {{ r.signal_count ?? '—' }} signals</div>
+    </div>
+  </div>
+
+  <!-- Detail panel -->
+  <div class="detail-panel">
+    <div *ngIf="!selectedRun && !detailLoading" class="empty-state">
+      Select a run on the left to view its report.
+    </div>
+
+    <div *ngIf="detailLoading" class="loading">Loading…</div>
+
+    <ng-container *ngIf="selectedRun && !detailLoading">
+      <div class="card">
+        <h2>{{ selectedRun.run_id }}</h2>
+        <div style="font-size:12px; color:#606080; margin-bottom:16px;">
+          {{ selectedRun.strategy }} · Universe: {{ selectedRun.universe ?? '—' }} ·
+          {{ selectedRun.started_at?.slice(0, 10) }}
+        </div>
+
+        <!-- Core metrics -->
+        <div class="stat-grid" *ngIf="selectedRun.metrics">
+          <div class="stat-card" *ngFor="let k of metricKeys()">
+            <div class="stat-value" style="font-size:18px;">
+              {{ (selectedRun.metrics)![k] | json }}
+            </div>
+            <div class="stat-label">{{ k.replace('_', ' ') }}</div>
+          </div>
+        </div>
+
+        <!-- Exit reason breakdown -->
+        <div *ngIf="exitReasons().length > 0" style="margin-top:16px;">
+          <h2>Exit reasons</h2>
+          <table>
+            <thead><tr><th>Reason</th><th>Count</th></tr></thead>
+            <tbody>
+              <tr *ngFor="let er of exitReasons()">
+                <td>{{ er.reason }}</td>
+                <td>{{ er.count }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Bias disclosure -->
+        <div class="bias-box" *ngIf="selectedRun.biases?.length">
+          <strong>Known biases</strong>
+          <ul>
+            <li *ngFor="let b of selectedRun.biases">{{ b }}</li>
+          </ul>
+        </div>
+      </div>
+    </ng-container>
+  </div>
+</div>

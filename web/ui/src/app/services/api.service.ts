@@ -1,0 +1,133 @@
+import { Injectable } from '@angular/core';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Observable, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
+
+export interface GateEntry {
+  name: string;
+  status: 'pass' | 'fail' | 'skip' | 'bonus_pass' | 'bonus_fail';
+  detail: string;
+}
+
+export interface Signal {
+  id: number;
+  date: string;
+  ticker: string;
+  strategy: string;
+  source: string;
+  run_id: string;
+  score: number;
+  confidence: string | null;
+  stop: number | null;
+  target: number | null;
+  atr: number | null;
+  qualified: number;
+  failed_gates: string;
+  close: number | null;
+  ath_zone: string | null;
+  gate_detail: GateEntry[];
+  outcome_checked_at: string | null;
+  entry_px: number | null;
+  exit_px: number | null;
+  exit_reason: string | null;
+  r_multiple: number | null;
+  holding_days: number | null;
+}
+
+export interface Run {
+  run_id: string;
+  kind: 'scan' | 'backtest';
+  strategy: string | null;
+  universe: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  signal_count: number | null;
+  metrics?: Record<string, unknown> | null;
+  biases?: string[] | null;
+}
+
+export interface SummaryStats {
+  open_positions: number;
+  signals_tonight: number;
+  last_scan_run: {
+    run_id: string;
+    started_at: string;
+    finished_at: string | null;
+    signal_count: number;
+    strategy: string | null;
+  } | null;
+}
+
+export interface JournalCompare {
+  live_n: number;
+  live_expectancy_r: number | null;
+  live_win_rate: number | null;
+  backtest_run_id: string;
+  backtest_n: number | null;
+  backtest_expectancy_r: number | null;
+  backtest_win_rate: number | null;
+  warning: string | null;
+}
+
+@Injectable({ providedIn: 'root' })
+export class ApiService {
+  private base = '/api';
+
+  constructor(private http: HttpClient) {}
+
+  getSummary(): Observable<SummaryStats | null> {
+    return this.http.get<SummaryStats>(`${this.base}/stats/summary`).pipe(
+      catchError(() => of(null))
+    );
+  }
+
+  getLatestSignals(filters: { strategy?: string; min_score?: number; confidence?: string } = {}):
+      Observable<{ count: number; signals: Signal[] } | null> {
+    let params = new HttpParams();
+    if (filters.strategy)       params = params.set('strategy',  filters.strategy);
+    if (filters.min_score != null) params = params.set('min_score', String(filters.min_score));
+    if (filters.confidence)     params = params.set('confidence', filters.confidence);
+    return this.http.get<{ count: number; signals: Signal[] }>(`${this.base}/signals/latest`, { params }).pipe(
+      catchError(() => of(null))
+    );
+  }
+
+  getSignal(id: number): Observable<Signal | null> {
+    return this.http.get<Signal>(`${this.base}/signals/${id}`).pipe(
+      catchError(() => of(null))
+    );
+  }
+
+  getSignalHistory(filters: { from?: string; to?: string; status?: 'open' | 'resolved'; strategy?: string } = {}):
+      Observable<{ count: number; signals: Signal[] } | null> {
+    let params = new HttpParams();
+    if (filters.from)     params = params.set('from',     filters.from);
+    if (filters.to)       params = params.set('to',       filters.to);
+    if (filters.status)   params = params.set('status',   filters.status);
+    if (filters.strategy) params = params.set('strategy', filters.strategy);
+    return this.http.get<{ count: number; signals: Signal[] }>(`${this.base}/signals/history`, { params }).pipe(
+      catchError(() => of(null))
+    );
+  }
+
+  getRuns(kind?: 'scan' | 'backtest'): Observable<{ count: number; runs: Run[] } | null> {
+    let params = new HttpParams();
+    if (kind) params = params.set('kind', kind);
+    return this.http.get<{ count: number; runs: Run[] }>(`${this.base}/runs`, { params }).pipe(
+      catchError(() => of(null))
+    );
+  }
+
+  getRun(runId: string): Observable<Run | null> {
+    return this.http.get<Run>(`${this.base}/runs/${encodeURIComponent(runId)}`).pipe(
+      catchError(() => of(null))
+    );
+  }
+
+  getJournalCompare(backtestRunId: string): Observable<JournalCompare | null> {
+    const params = new HttpParams().set('backtest_run', backtestRunId);
+    return this.http.get<JournalCompare>(`${this.base}/journal/compare`, { params }).pipe(
+      catchError(() => of(null))
+    );
+  }
+}

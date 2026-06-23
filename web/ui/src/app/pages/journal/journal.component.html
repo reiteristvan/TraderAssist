@@ -1,0 +1,61 @@
+<div class="page-header">
+  <h1>Journal</h1>
+  <span class="page-subtitle">Signal history &amp; outcomes</span>
+</div>
+
+<div class="card" style="display:flex; gap:12px; flex-wrap:wrap; align-items:center; padding:12px 16px;">
+  <label>Status
+    <select [(ngModel)]="filterStatus" (change)="load()" style="margin-left:6px;">
+      <option value="">All</option>
+      <option value="open">Open</option>
+      <option value="resolved">Resolved</option>
+    </select>
+  </label>
+  <label>Strategy
+    <select [(ngModel)]="filterStrategy" (change)="load()" style="margin-left:6px;">
+      <option value="">All</option>
+      <option value="pullback">Pullback</option>
+      <option value="breakout">Breakout</option>
+    </select>
+  </label>
+</div>
+
+<div *ngIf="loading" class="loading">Loading…</div>
+
+<div *ngIf="!loading && signals.length === 0" class="empty-state">
+  <strong>No signals in the journal yet.</strong>
+  <p>Run the scanner to start building a history.</p>
+</div>
+
+<div class="card" style="padding:0; overflow:hidden;" *ngIf="!loading && signals.length > 0">
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Ticker</th>
+        <th>Strategy</th>
+        <th>Score</th>
+        <th>Status</th>
+        <th>Exit reason</th>
+        <th>R</th>
+        <th>Days</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let s of signals">
+        <td>{{ s.date }}</td>
+        <td><a [routerLink]="['/diagnosis', s.id]">{{ s.ticker }}</a></td>
+        <td>{{ s.strategy }}</td>
+        <td>{{ s.score | number:'1.0-0' }}</td>
+        <td>
+          <span class="badge" [class.badge-pass]="s.exit_reason === null" [class.badge-medium]="s.exit_reason !== null">
+            {{ s.exit_reason === null ? 'Open' : 'Resolved' }}
+          </span>
+        </td>
+        <td>{{ s.exit_reason ?? '—' }}</td>
+        <td [class]="rClass(s)">{{ rMultiple(s) }}</td>
+        <td>{{ s.holding_days ?? '—' }}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>

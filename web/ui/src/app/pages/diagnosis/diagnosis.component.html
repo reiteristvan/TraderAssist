@@ -1,0 +1,97 @@
+<div *ngIf="loading" class="loading">Loading…</div>
+
+<div *ngIf="notFound && !loading" class="empty-state">
+  <strong>Signal not found.</strong>
+  <p><a routerLink="/candidates">Back to candidates</a></p>
+</div>
+
+<ng-container *ngIf="signal && !loading">
+  <div class="page-header">
+    <h1>{{ signal.ticker }}</h1>
+    <span class="page-subtitle">{{ signal.strategy }} · {{ signal.date }}</span>
+    <span class="badge"
+      [class.badge-high]="signal.confidence === 'HIGH'"
+      [class.badge-medium]="signal.confidence === 'MEDIUM'"
+      [class.badge-low]="signal.confidence === 'LOW'">
+      {{ signal.confidence ?? '—' }}
+    </span>
+  </div>
+
+  <!-- Key levels -->
+  <div class="card">
+    <h2>Price levels</h2>
+    <div class="levels-grid">
+      <div class="level-item">
+        <div class="level-label">Entry (last close)</div>
+        <div class="level-value">{{ signal.close | number:'1.2-2' }}</div>
+      </div>
+      <div class="level-item level-stop">
+        <div class="level-label">Stop</div>
+        <div class="level-value">{{ signal.stop | number:'1.2-2' }}</div>
+      </div>
+      <div class="level-item level-target">
+        <div class="level-label">Target</div>
+        <div class="level-value">{{ signal.target | number:'1.2-2' }}</div>
+      </div>
+      <div class="level-item">
+        <div class="level-label">ATR(14)</div>
+        <div class="level-value">{{ signal.atr | number:'1.2-2' }}</div>
+      </div>
+      <div class="level-item">
+        <div class="level-label">R/R</div>
+        <div class="level-value">{{ rr }}</div>
+      </div>
+      <div class="level-item">
+        <div class="level-label">ATH zone</div>
+        <div class="level-value">{{ signal.ath_zone ?? '—' }}</div>
+      </div>
+      <div class="level-item">
+        <div class="level-label">Score</div>
+        <div class="level-value">{{ signal.score | number:'1.0-0' }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Position sizing -->
+  <div class="card">
+    <h2>Position sizing</h2>
+    <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-end; margin-bottom:16px;">
+      <label class="size-field">
+        Account ($)
+        <input type="number" [(ngModel)]="accountSize" min="1000" step="500" style="width:120px;">
+      </label>
+      <label class="size-field">
+        Risk (%)
+        <input type="number" [(ngModel)]="riskPct" min="0.1" max="5" step="0.1" style="width:80px;">
+      </label>
+    </div>
+    <div class="size-result">
+      <span class="size-shares">{{ shares }}</span> shares
+      <span class="size-sub">· ${{ positionValue | number:'1.0-0' }} position value
+        · ${{ (accountSize * riskPct / 100) | number:'1.0-0' }} at risk</span>
+    </div>
+    <div *ngIf="signal.close && signal.stop && signal.close <= signal.stop"
+         class="warning-box" style="margin-top:12px;">
+      Entry ≤ stop — sizing is 0 shares. Check data.
+    </div>
+  </div>
+
+  <!-- Gate log -->
+  <div class="card">
+    <h2>Gate log</h2>
+    <div *ngIf="!signal.gate_detail || signal.gate_detail.length === 0" class="empty-state" style="padding:16px 0;">
+      No gate detail available for this signal.
+    </div>
+    <div class="gate-log" *ngIf="signal.gate_detail && signal.gate_detail.length > 0">
+      <div *ngFor="let entry of signal.gate_detail" class="gate-row">
+        <span class="gate-icon" [class]="gateStatusClass(entry)">{{ gateIcon(entry) }}</span>
+        <span class="gate-name">{{ entry.name }}</span>
+        <span class="gate-detail">{{ entry.detail }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:8px; font-size:12px; color:#606080;">
+    <a routerLink="/candidates">← Back to candidates</a>
+  </div>
+</ng-container>

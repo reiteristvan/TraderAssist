@@ -1,0 +1,29 @@
+.levels-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+}
+.level-item { background: #16162a; border-radius: 6px; padding: 10px 14px; }
+.level-label { font-size: 11px; color: #606080; text-transform: uppercase; margin-bottom: 4px; }
+.level-value { font-size: 18px; font-weight: 600; color: #e0e0f0; }
+.level-stop .level-value { color: #c46060; }
+.level-target .level-value { color: #4caf89; }
+
+.size-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #808090; }
+.size-result { font-size: 22px; font-weight: 600; color: #7eb8f7; }
+.size-sub { font-size: 13px; color: #808090; font-weight: 400; }
+.size-shares { font-size: 32px; }
+
+.gate-log { display: flex; flex-direction: column; gap: 2px; }
+.gate-row {
+  display: grid;
+  grid-template-columns: 28px 220px 1fr;
+  align-items: center;
+  padding: 5px 4px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.gate-row:hover { background: #16162a; }
+.gate-icon { font-size: 12px; text-align: center; font-weight: 700; }
+.gate-name { color: #c0c0e0; }
+.gate-detail { color: #707090; font-size: 12px; }

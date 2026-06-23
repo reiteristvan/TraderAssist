@@ -1,0 +1,81 @@
+<div class="page-header">
+  <h1>Dashboard</h1>
+  <span class="page-subtitle">Evening review</span>
+</div>
+
+<div *ngIf="error" class="empty-state">
+  <strong>Scanner database not found.</strong>
+  <p>Run <code>python scan.py scan --strategy pullback</code> to generate signals.</p>
+</div>
+
+<ng-container *ngIf="!error">
+  <!-- Stats row -->
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="stat-value">{{ stats?.signals_tonight ?? '—' }}</div>
+      <div class="stat-label">Signals tonight</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{ stats?.open_positions ?? '—' }}</div>
+      <div class="stat-label">Open positions</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{ stats?.last_scan_run?.strategy ?? '—' }}</div>
+      <div class="stat-label">Last strategy</div>
+    </div>
+    <div class="stat-card" style="grid-column: span 1">
+      <div class="stat-value" style="font-size: 13px; line-height: 1.6;">
+        {{ formatDate(stats?.last_scan_run?.started_at ?? null) }}
+      </div>
+      <div class="stat-label">Last scan time</div>
+    </div>
+  </div>
+
+  <!-- Top candidates preview -->
+  <div class="card">
+    <h2>Top candidates tonight</h2>
+
+    <div *ngIf="loading" class="loading">Loading…</div>
+
+    <div *ngIf="!loading && topSignals.length === 0" class="empty-state" style="padding: 24px 0;">
+      <strong>No qualified signals yet.</strong>
+      <p>Run the scanner to populate candidates.</p>
+    </div>
+
+    <table *ngIf="!loading && topSignals.length > 0">
+      <thead>
+        <tr>
+          <th>Ticker</th>
+          <th>Strategy</th>
+          <th>Score</th>
+          <th>Confidence</th>
+          <th>Stop</th>
+          <th>Target</th>
+          <th>ATH zone</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let s of topSignals">
+          <td><a [routerLink]="['/diagnosis', s.id]">{{ s.ticker }}</a></td>
+          <td>{{ s.strategy }}</td>
+          <td>{{ s.score | number:'1.0-0' }}</td>
+          <td>
+            <span class="badge"
+              [class.badge-high]="s.confidence === 'HIGH'"
+              [class.badge-medium]="s.confidence === 'MEDIUM'"
+              [class.badge-low]="s.confidence === 'LOW'">
+              {{ s.confidence ?? '—' }}
+            </span>
+          </td>
+          <td>{{ s.stop | number:'1.2-2' }}</td>
+          <td>{{ s.target | number:'1.2-2' }}</td>
+          <td>{{ s.ath_zone ?? '—' }}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div *ngIf="!loading && topSignals.length > 0" style="margin-top: 12px; font-size: 12px; color: #606080;">
+      <a routerLink="/candidates">View all candidates →</a>
+    </div>
+  </div>
+</ng-container>
