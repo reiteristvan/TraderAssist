@@ -38,22 +38,40 @@ def build_universe(index: str, out_path: Optional[Path] = None) -> list[str]:
     if url is None:
         raise ValueError(f"Unknown index: {index!r}. Choose from {list(_WIKIPEDIA_URLS)}")
 
+    import io
+    import requests
     _log.info("Fetching %s constituents from Wikipedia...", index)
-    tables = pd.read_html(url)
+    session = requests.Session()
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                      "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+    })
+    resp = session.get(url, timeout=30)
+    resp.raise_for_status()
+    tables = pd.read_html(io.StringIO(resp.text))
 
     tickers: list[str] = []
     for table in tables:
-        # Find first table that has a recognized ticker column
-        for col in _TICKER_COLS:
-            if col in table.columns:
-                raw = table[col].dropna().astype(str).tolist()
-                tickers = sorted({_normalize(t) for t in raw if t and t.upper() != col.upper()})
-                break
-        if tickers:
+        # Column headers on Wikipedia often have footnote markers like "Symbol[a]"
+        # so we match by prefix/containment rather than exact equality.
+        ticker_col = next(
+            (c for c in table.columns
+             if any(c.strip().lower().startswith(k.lower()) for k in ("symbol", "ticker"))),
+            None,
+        )
+        if ticker_col is not None:
+            raw = table[ticker_col].dropna().astype(str).tolist()
+            tickers = sorted({_normalize(t) for t in raw if t.strip()})
             break
 
     if not tickers:
-        raise RuntimeError(f"Could not find a ticker column in any table at {url}")
+        found_cols = [list(t.columns) for t in tables[:3]]
+        raise RuntimeError(
+            f"Could not find a ticker column in any table at {url}. "
+            f"First table columns: {found_cols}"
+        )
 
     if out_path is not None:
         out_path = Path(out_path)

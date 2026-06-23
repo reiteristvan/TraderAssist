@@ -4,5 +4,6 @@ numpy
 ta
 pyarrow
 pandas_market_calendars
+lxml
 pytest
 pytest-cov
