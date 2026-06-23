@@ -76,6 +76,18 @@ describe('GET /api/runs/:run_id', () => {
     expect(res.body.biases.length).toBe(2);
   });
 
+  it('returns score_buckets, conf_buckets, gate_attribution for backtest run', async () => {
+    const res = await request(app).get('/api/runs/bt_2026_pb');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.score_buckets)).toBe(true);
+    expect(res.body.score_buckets.length).toBe(4);
+    expect(res.body.score_buckets[1].bucket).toBe('55–69');
+    expect(Array.isArray(res.body.conf_buckets)).toBe(true);
+    expect(res.body.conf_buckets[2].bucket).toBe('HIGH');
+    expect(Array.isArray(res.body.gate_attribution)).toBe(true);
+    expect(res.body.gate_attribution[0].gate).toBe('Volume contraction');
+  });
+
   it('returns 404 for unknown run', async () => {
     const res = await request(app).get('/api/runs/nonexistent');
     expect(res.status).toBe(404);

@@ -16,6 +16,7 @@
          (click)="selectRun(r.run_id)">
       <div class="run-id">{{ r.run_id }}</div>
       <div class="run-meta">{{ r.strategy }} · {{ r.signal_count ?? '—' }} signals</div>
+      <div class="run-meta">{{ r.started_at?.slice(0, 10) }}</div>
     </div>
   </div>
 
@@ -24,49 +25,195 @@
     <div *ngIf="!selectedRun && !detailLoading" class="empty-state">
       Select a run on the left to view its report.
     </div>
-
     <div *ngIf="detailLoading" class="loading">Loading…</div>
 
     <ng-container *ngIf="selectedRun && !detailLoading">
+
+      <!-- Header + core metrics -->
       <div class="card">
         <h2>{{ selectedRun.run_id }}</h2>
-        <div style="font-size:12px; color:#606080; margin-bottom:16px;">
-          {{ selectedRun.strategy }} · Universe: {{ selectedRun.universe ?? '—' }} ·
+        <div class="run-header-meta">
+          {{ selectedRun.strategy }} ·
+          Universe: {{ selectedRun.universe ?? '—' }} ·
           {{ selectedRun.started_at?.slice(0, 10) }}
         </div>
 
-        <!-- Core metrics -->
-        <div class="stat-grid" *ngIf="selectedRun.metrics">
-          <div class="stat-card" *ngFor="let k of metricKeys()">
-            <div class="stat-value" style="font-size:18px;">
-              {{ (selectedRun.metrics)![k] | json }}
-            </div>
-            <div class="stat-label">{{ k.replace('_', ' ') }}</div>
-          </div>
+        <div *ngIf="!coreMetrics || coreMetrics.count === 0" class="empty-state" style="padding:16px 0;">
+          No qualifying trades in this run.
         </div>
 
-        <!-- Exit reason breakdown -->
-        <div *ngIf="exitReasons().length > 0" style="margin-top:16px;">
-          <h2>Exit reasons</h2>
-          <table>
-            <thead><tr><th>Reason</th><th>Count</th></tr></thead>
+        <div class="stat-grid" *ngIf="coreMetrics && coreMetrics.count > 0">
+          <div class="stat-card">
+            <div class="stat-value">{{ coreMetrics.count }}</div>
+            <div class="stat-label">Trades</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">{{ fmt(coreMetrics.win_rate) }}</div>
+            <div class="stat-label">Win rate</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" [class.positive]="(coreMetrics.expectancy_r ?? 0) > 0"
+                                    [class.negative]="(coreMetrics.expectancy_r ?? 0) < 0">
+              {{ fmtR(coreMetrics.expectancy_r) }}
+            </div>
+            <div class="stat-label">Expectancy</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value positive">{{ fmtR(coreMetrics.avg_win_r) }}</div>
+            <div class="stat-label">Avg win</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value negative">{{ fmtR(coreMetrics.avg_loss_r) }}</div>
+            <div class="stat-label">Avg loss</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">{{ coreMetrics.median_holding_days ?? '—' }}</div>
+            <div class="stat-label">Median hold (days)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value negative">
+              {{ coreMetrics.max_drawdown_r != null ? '-' + (coreMetrics.max_drawdown_r | number:'1.2-2') + 'R' : '—' }}
+            </div>
+            <div class="stat-label">Max drawdown</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Score buckets -->
+      <div class="card" *ngIf="scoreBuckets.length > 0">
+        <h2>Score buckets</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Score range</th>
+              <th class="num">n</th>
+              <th class="num">Win rate</th>
+              <th class="num">E(R)</th>
+              <th>Verdict</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let b of scoreBuckets" [class.muted-row]="b.verdict === 'insufficient n'">
+              <td>{{ b.bucket }}</td>
+              <td class="num">{{ b.n }}</td>
+              <td class="num">{{ b.win_rate != null ? fmt(b.win_rate) : '—' }}</td>
+              <td class="num" [class.positive]="(b.expectancy_r ?? 0) > 0"
+                              [class.negative]="(b.expectancy_r ?? 0) < 0">
+                {{ b.expectancy_r != null ? fmtR3(b.expectancy_r) : '—' }}
+              </td>
+              <td>
+                <span class="badge" [class.badge-pass]="b.verdict === 'ok'"
+                                    [class.badge-skip]="b.verdict === 'insufficient n'">
+                  {{ b.verdict }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Confidence buckets -->
+      <div class="card" *ngIf="confBuckets.length > 0">
+        <h2>Confidence buckets</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Confidence</th>
+              <th class="num">n</th>
+              <th class="num">Win rate</th>
+              <th class="num">E(R)</th>
+              <th>Verdict</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let b of confBuckets" [class.muted-row]="b.verdict === 'insufficient n'">
+              <td>
+                <span class="badge" [class.badge-high]="b.bucket === 'HIGH'"
+                                    [class.badge-medium]="b.bucket === 'MEDIUM'"
+                                    [class.badge-low]="b.bucket === 'LOW'">
+                  {{ b.bucket }}
+                </span>
+              </td>
+              <td class="num">{{ b.n }}</td>
+              <td class="num">{{ b.win_rate != null ? fmt(b.win_rate) : '—' }}</td>
+              <td class="num" [class.positive]="(b.expectancy_r ?? 0) > 0"
+                              [class.negative]="(b.expectancy_r ?? 0) < 0">
+                {{ b.expectancy_r != null ? fmtR3(b.expectancy_r) : '—' }}
+              </td>
+              <td>
+                <span class="badge" [class.badge-pass]="b.verdict === 'ok'"
+                                    [class.badge-skip]="b.verdict === 'insufficient n'">
+                  {{ b.verdict }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Gate attribution -->
+      <div class="card" *ngIf="gateAttribution.length > 0">
+        <h2>Gate attribution</h2>
+        <p class="section-desc">
+          Near-misses failing only one gate vs. qualified expectancy.
+          Measures each gate's filtering value (n ≥ 30 to be meaningful).
+        </p>
+        <div style="overflow-x:auto;">
+          <table class="attrib-table">
+            <thead>
+              <tr>
+                <th>Gate</th>
+                <th class="num">Near-miss n</th>
+                <th class="num">Near-miss E(R)</th>
+                <th class="num">Qualified E(R)</th>
+                <th class="num">Δ(R)</th>
+                <th>Verdict</th>
+              </tr>
+            </thead>
             <tbody>
-              <tr *ngFor="let er of exitReasons()">
-                <td>{{ er.reason }}</td>
-                <td>{{ er.count }}</td>
+              <tr *ngFor="let a of gateAttribution"
+                  [class.muted-row]="a.verdict === 'insufficient n'">
+                <td>{{ a.gate }}</td>
+                <td class="num">{{ a.n }}</td>
+                <td class="num" [class.positive]="(a.expectancy_r ?? 0) > 0"
+                                [class.negative]="(a.expectancy_r ?? 0) < 0">
+                  {{ a.expectancy_r != null ? fmtR3(a.expectancy_r) : '—' }}
+                </td>
+                <td class="num positive">
+                  {{ a.qualified_expectancy_r != null ? fmtR3(a.qualified_expectancy_r) : '—' }}
+                </td>
+                <td class="num" [class]="deltaClass(a.delta_r)">
+                  {{ a.delta_r != null ? ((a.delta_r >= 0 ? '+' : '') + (a.delta_r | number:'1.3-3')) : '—' }}
+                </td>
+                <td class="verdict-cell">{{ a.verdict }}</td>
               </tr>
             </tbody>
           </table>
         </div>
-
-        <!-- Bias disclosure -->
-        <div class="bias-box" *ngIf="selectedRun.biases?.length">
-          <strong>Known biases</strong>
-          <ul>
-            <li *ngFor="let b of selectedRun.biases">{{ b }}</li>
-          </ul>
-        </div>
       </div>
+
+      <!-- Exit reasons -->
+      <div class="card" *ngIf="exitReasons().length > 0">
+        <h2>Exit reasons</h2>
+        <table>
+          <thead><tr><th>Reason</th><th class="num">Count</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let er of exitReasons()">
+              <td>{{ er.reason }}</td>
+              <td class="num">{{ er.count }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Bias disclosure -->
+      <div class="bias-box" *ngIf="selectedRun.biases?.length">
+        <strong>Known biases</strong>
+        <ul>
+          <li *ngFor="let b of selectedRun.biases">{{ b }}</li>
+        </ul>
+      </div>
+
     </ng-container>
   </div>
 </div>

@@ -58,9 +58,33 @@ function makeTmpDb({ withScanRun = true, withBacktest = false, withSignals = tru
     conn.prepare(
       "INSERT INTO backtest_reports (run_id, metrics_json, biases_json) VALUES (?,?,?)"
     ).run('bt_2026_pb',
-          JSON.stringify({ count: 180, win_rate: 0.54, expectancy_r: 0.38, median_holding_days: 7 }),
-          JSON.stringify(['Survivorship bias — currently listed names only',
-                          'Fundamentals look-ahead bias']));
+      JSON.stringify({
+        metrics: {
+          count: 180, win_rate: 0.54, expectancy_r: 0.38, avg_win_r: 1.9, avg_loss_r: -1.0,
+          median_holding_days: 7, max_drawdown_r: 2.8,
+          exit_reason_breakdown: { stop: 83, target: 97 },
+          ambiguous_bar_pct: 0.04, gap_skip_pct: 0.06, incomplete_pct: 0.02,
+        },
+        score_buckets: [
+          { bucket: '40–54', n: 12, win_rate: 0.42, expectancy_r: 0.12, verdict: 'insufficient n' },
+          { bucket: '55–69', n: 45, win_rate: 0.49, expectancy_r: 0.28, verdict: 'ok' },
+          { bucket: '70–84', n: 82, win_rate: 0.57, expectancy_r: 0.41, verdict: 'ok' },
+          { bucket: '85–100', n: 41, win_rate: 0.66, expectancy_r: 0.62, verdict: 'ok' },
+        ],
+        conf_buckets: [
+          { bucket: 'LOW',    n: 22, win_rate: 0.36, expectancy_r: 0.08, verdict: 'ok' },
+          { bucket: 'MEDIUM', n: 78, win_rate: 0.51, expectancy_r: 0.32, verdict: 'ok' },
+          { bucket: 'HIGH',   n: 80, win_rate: 0.64, expectancy_r: 0.55, verdict: 'ok' },
+        ],
+        gate_attribution: [
+          { gate: 'Volume contraction', n: 35, expectancy_r: 0.40, qualified_expectancy_r: 0.38, delta_r: 0.02, verdict: 'no measurable value in this sample' },
+          { gate: 'ADX(14) trend strength', n: 28, expectancy_r: 0.18, qualified_expectancy_r: 0.38, delta_r: -0.20, verdict: 'insufficient n' },
+        ],
+        monthly_signals: { '2023-01': 5, '2023-02': 8 },
+        run_meta: { strategy: 'pullback', start: '2023-01-01', end: '2025-12-31' },
+      }),
+      JSON.stringify(['Survivorship bias — currently listed names only',
+                      'Fundamentals look-ahead bias']));
   }
 
   const gateDetail = JSON.stringify([

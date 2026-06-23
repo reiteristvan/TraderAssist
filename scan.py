@@ -307,7 +307,7 @@ def cmd_backtest(args) -> None:
             signals, q_trades, nm_trades,
             run_id=run_meta.get("git_hash", "unknown") + "_" + run_meta["start"],
             run_meta=run_meta,
-            metrics=json_data["metrics"],
+            metrics=json_data,  # full report: metrics + score_buckets + gate_attribution
             biases=json_data["biases"],
         )
         print("  Backtest ingested into scanner.db")

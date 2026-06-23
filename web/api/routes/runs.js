@@ -39,8 +39,23 @@ router.get('/runs/:run_id', (req, res) => {
 
   if (run.kind === 'backtest') {
     const report = db.getBacktestReport(run_id);
-    result.metrics = report ? JSON.parse(report.metrics_json || '{}') : null;
-    result.biases  = report ? JSON.parse(report.biases_json  || '[]') : null;
+    if (report) {
+      const reportData = JSON.parse(report.metrics_json || '{}');
+      // Support both old flat format and new nested format (full json_data from render_report)
+      if (reportData.metrics) {
+        result.metrics         = reportData.metrics;
+        result.score_buckets   = reportData.score_buckets   || [];
+        result.conf_buckets    = reportData.conf_buckets    || [];
+        result.gate_attribution = reportData.gate_attribution || [];
+        result.monthly_signals  = reportData.monthly_signals  || {};
+      } else {
+        result.metrics = reportData;
+      }
+      result.biases = JSON.parse(report.biases_json || '[]');
+    } else {
+      result.metrics = null;
+      result.biases  = null;
+    }
   }
 
   res.json(result);

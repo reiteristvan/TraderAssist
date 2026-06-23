@@ -34,6 +34,45 @@ export interface Signal {
   holding_days: number | null;
 }
 
+export interface CoreMetrics {
+  count: number;
+  win_rate: number | null;
+  avg_win_r: number | null;
+  avg_loss_r: number | null;
+  expectancy_r: number | null;
+  median_holding_days: number | null;
+  max_drawdown_r: number | null;
+  exit_reason_breakdown: Record<string, number>;
+  ambiguous_bar_pct: number;
+  gap_skip_pct: number;
+  incomplete_pct: number;
+}
+
+export interface ScoreBucket {
+  bucket: string;
+  n: number;
+  win_rate: number | null;
+  expectancy_r: number | null;
+  verdict: string;
+}
+
+export interface ConfBucket {
+  bucket: string;
+  n: number;
+  win_rate: number | null;
+  expectancy_r: number | null;
+  verdict: string;
+}
+
+export interface GateAttrib {
+  gate: string;
+  n: number;
+  expectancy_r: number | null;
+  qualified_expectancy_r: number | null;
+  delta_r: number | null;
+  verdict: string;
+}
+
 export interface Run {
   run_id: string;
   kind: 'scan' | 'backtest';
@@ -42,7 +81,11 @@ export interface Run {
   started_at: string | null;
   finished_at: string | null;
   signal_count: number | null;
-  metrics?: Record<string, unknown> | null;
+  metrics?: CoreMetrics | null;
+  score_buckets?: ScoreBucket[] | null;
+  conf_buckets?: ConfBucket[] | null;
+  gate_attribution?: GateAttrib[] | null;
+  monthly_signals?: Record<string, number> | null;
   biases?: string[] | null;
 }
 

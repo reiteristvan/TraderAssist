@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { ApiService, Run } from '../../services/api.service';
+import { ApiService, Run, CoreMetrics, ScoreBucket, ConfBucket, GateAttrib } from '../../services/api.service';
 
 @Component({
   selector: 'app-backtests',
@@ -37,6 +37,30 @@ export class BacktestsComponent implements OnInit {
     });
   }
 
+  get coreMetrics(): CoreMetrics | null {
+    return this.selectedRun?.metrics ?? null;
+  }
+
+  get scoreBuckets(): ScoreBucket[] {
+    return this.selectedRun?.score_buckets ?? [];
+  }
+
+  get confBuckets(): ConfBucket[] {
+    return this.selectedRun?.conf_buckets ?? [];
+  }
+
+  get gateAttribution(): GateAttrib[] {
+    return this.selectedRun?.gate_attribution ?? [];
+  }
+
+  exitReasons(): { reason: string; count: number }[] {
+    const er = this.coreMetrics?.exit_reason_breakdown;
+    if (!er) return [];
+    return Object.entries(er)
+      .map(([reason, count]) => ({ reason, count }))
+      .sort((a, b) => b.count - a.count);
+  }
+
   fmt(v: number | null | undefined): string {
     if (v == null) return '—';
     return (v * 100).toFixed(1) + '%';
@@ -47,15 +71,15 @@ export class BacktestsComponent implements OnInit {
     return (v >= 0 ? '+' : '') + v.toFixed(2) + 'R';
   }
 
-  metricKeys(): string[] {
-    const m = this.selectedRun?.metrics;
-    if (!m) return [];
-    return Object.keys(m).filter(k => k !== 'exit_reasons' && k !== 'monthly_signals');
+  fmtR3(v: number | null | undefined): string {
+    if (v == null) return '—';
+    return (v >= 0 ? '+' : '') + v.toFixed(3);
   }
 
-  exitReasons(): { reason: string; count: number }[] {
-    const m = this.selectedRun?.metrics as any;
-    if (!m?.exit_reasons) return [];
-    return Object.entries(m.exit_reasons).map(([reason, count]) => ({ reason, count: count as number }));
+  deltaClass(v: number | null | undefined): string {
+    if (v == null) return '';
+    if (v > 0.05) return 'positive';
+    if (v < -0.05) return 'negative';
+    return '';
   }
 }

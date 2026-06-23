@@ -1,2 +1,19 @@
 .positive { color: #4caf89; font-weight: 600; }
 .negative { color: #c46060; font-weight: 600; }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.filter-bar {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 12px 16px;
+}
+.filter-bar label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #808090;
+  text-transform: uppercase;
+}

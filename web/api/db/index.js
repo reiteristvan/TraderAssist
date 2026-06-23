@@ -207,7 +207,9 @@ function getJournalCompare(runId) {
   const report = getBacktestReport(runId);
   if (!report) return null;
 
-  const btMetrics = JSON.parse(report.metrics_json || '{}');
+  const reportData = JSON.parse(report.metrics_json || '{}');
+  // Support both old flat format and new nested format (full json_data from render_report)
+  const btMetrics = reportData.metrics || reportData;
   const liveRows = db.prepare(
     "SELECT r_multiple FROM signals " +
     "WHERE source='live' AND qualified=1 AND exit_reason IS NOT NULL AND r_multiple IS NOT NULL"
