@@ -16,6 +16,7 @@ const path = require('path');
 const fs = require('fs');
 
 let _db = null;
+let _writeDb = null;
 let _dbPath = null;
 
 function resolvedDbPath() {
@@ -44,15 +45,33 @@ function getDb() {
   }
 }
 
+/**
+ * Returns a read-write Database for job enqueueing only.
+ * Separate from the read-only connection to keep all query functions protected.
+ */
+function getWriteDb() {
+  if (_writeDb) return _writeDb;
+  const dbPath = resolvedDbPath();
+  if (!fs.existsSync(dbPath)) return null;
+  try {
+    _writeDb = new Database(dbPath, { fileMustExist: true });
+    return _writeDb;
+  } catch (_) {
+    return null;
+  }
+}
+
 /** Expose the resolved path for diagnostic messages even when DB is missing. */
 function getDbPath() {
   return _dbPath || resolvedDbPath();
 }
 
-/** Reset cached connection — used in tests to swap DB paths. */
+/** Reset cached connections — used in tests to swap DB paths. */
 function _reset() {
   if (_db) { try { _db.close(); } catch (_) {} }
+  if (_writeDb) { try { _writeDb.close(); } catch (_) {} }
   _db = null;
+  _writeDb = null;
   _dbPath = null;
 }
 
@@ -238,6 +257,23 @@ function getJournalCompare(runId) {
   };
 }
 
+// ── Jobs (write path — uses getWriteDb) ─────────────────────────────────────
+
+function enqueueJob(kind, params) {
+  const db = getWriteDb();
+  if (!db) return null;
+  const result = db.prepare(
+    "INSERT INTO jobs (kind, params_json) VALUES (?, ?)"
+  ).run(kind, JSON.stringify(params || {}));
+  return { id: Number(result.lastInsertRowid), status: 'queued' };
+}
+
+function getJob(id) {
+  const db = getDb();
+  if (!db) return null;
+  return db.prepare('SELECT * FROM jobs WHERE id = ?').get(Number(id)) || null;
+}
+
 module.exports = {
   getDb,
   getDbPath,
@@ -253,4 +289,6 @@ module.exports = {
   getResolvedLiveSignals,
   getSummaryStats,
   getJournalCompare,
+  enqueueJob,
+  getJob,
 };

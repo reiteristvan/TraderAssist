@@ -112,6 +112,16 @@ export interface JournalCompare {
   warning: string | null;
 }
 
+export interface Job {
+  id: number;
+  kind: string;
+  params: Record<string, unknown>;
+  status: 'queued' | 'running' | 'done' | 'error';
+  result_ref: string | null;
+  created_at: string;
+  finished_at: string | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private base = '/api';
@@ -170,6 +180,18 @@ export class ApiService {
   getJournalCompare(backtestRunId: string): Observable<JournalCompare | null> {
     const params = new HttpParams().set('backtest_run', backtestRunId);
     return this.http.get<JournalCompare>(`${this.base}/journal/compare`, { params }).pipe(
+      catchError(() => of(null))
+    );
+  }
+
+  postJob(kind: string, params: Record<string, unknown>): Observable<{ id: number; status: string } | null> {
+    return this.http.post<{ id: number; status: string }>(`${this.base}/jobs`, { kind, params }).pipe(
+      catchError(() => of(null))
+    );
+  }
+
+  pollJob(id: number): Observable<Job | null> {
+    return this.http.get<Job>(`${this.base}/jobs/${id}`).pipe(
       catchError(() => of(null))
     );
   }

@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 _DEFAULT_DB = Path("data/scanner.db")
-_SCHEMA_VERSION = 3
+_SCHEMA_VERSION = 4
 
 # ── DDL ───────────────────────────────────────────────────────────────────────
 
@@ -65,6 +65,17 @@ CREATE TABLE IF NOT EXISTS backtest_reports (
     metrics_json TEXT,
     biases_json  TEXT
 );
+
+CREATE TABLE IF NOT EXISTS jobs (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind        TEXT NOT NULL,
+    params_json TEXT,
+    status      TEXT NOT NULL DEFAULT 'queued',
+    result_ref  TEXT,
+    claimed_at  TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    finished_at TEXT
+);
 """
 
 # ── Connection ────────────────────────────────────────────────────────────────
@@ -98,6 +109,10 @@ def migrate(db_path: Optional[Path] = None, conn: Optional[sqlite3.Connection] =
             if current < 3:
                 conn.execute("ALTER TABLE signals ADD COLUMN ath_zone TEXT")
                 conn.execute("UPDATE schema_version SET version = 3")
+                current = 3
+            if current < 4:
+                # jobs table already created by executescript(_DDL) above
+                conn.execute("UPDATE schema_version SET version = 4")
         conn.commit()
     finally:
         if own:
@@ -244,3 +259,64 @@ def get_run_report(conn: sqlite3.Connection, run_id: str) -> Optional[dict]:
     if d.get("biases_json"):
         d["biases"] = json.loads(d["biases_json"])
     return d
+
+
+# ── jobs ──────────────────────────────────────────────────────────────────────
+
+def enqueue_job(conn: sqlite3.Connection, kind: str, params: dict) -> int:
+    """Insert a new queued job; returns the job id."""
+    cur = conn.execute(
+        "INSERT INTO jobs (kind, params_json) VALUES (?, ?)",
+        (kind, json.dumps(params)),
+    )
+    conn.commit()
+    return cur.lastrowid  # type: ignore[return-value]
+
+
+def claim_next_job(conn: sqlite3.Connection) -> Optional[dict]:
+    """Atomically claim the oldest queued job. Returns the job dict or None."""
+    conn.execute(
+        """UPDATE jobs SET status='running', claimed_at=datetime('now')
+           WHERE id=(SELECT id FROM jobs WHERE status='queued' ORDER BY id LIMIT 1)"""
+    )
+    conn.commit()
+    row = conn.execute(
+        "SELECT * FROM jobs WHERE status='running' ORDER BY claimed_at DESC LIMIT 1"
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def complete_job(conn: sqlite3.Connection, job_id: int, result_ref: str) -> None:
+    """Mark a job as done with a result reference."""
+    conn.execute(
+        "UPDATE jobs SET status='done', result_ref=?, finished_at=datetime('now') WHERE id=?",
+        (result_ref, job_id),
+    )
+    conn.commit()
+
+
+def fail_job(conn: sqlite3.Connection, job_id: int, error_msg: str) -> None:
+    """Mark a job as errored; error message stored in result_ref."""
+    conn.execute(
+        "UPDATE jobs SET status='error', result_ref=?, finished_at=datetime('now') WHERE id=?",
+        (error_msg[:2000], job_id),
+    )
+    conn.commit()
+
+
+def get_job(conn: sqlite3.Connection, job_id: int) -> Optional[dict]:
+    """Return a job by id, or None if not found."""
+    row = conn.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def reset_stale_jobs(conn: sqlite3.Connection, timeout_seconds: int = 300) -> int:
+    """Re-queue jobs stuck in 'running' for longer than timeout_seconds (crash recovery)."""
+    cur = conn.execute(
+        """UPDATE jobs SET status='queued', claimed_at=NULL
+           WHERE status='running'
+           AND (julianday('now') - julianday(claimed_at)) * 86400 > ?""",
+        (timeout_seconds,),
+    )
+    conn.commit()
+    return cur.rowcount

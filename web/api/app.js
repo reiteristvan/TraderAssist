@@ -10,6 +10,7 @@ const signalsRouter = require('./routes/signals');
 const runsRouter    = require('./routes/runs');
 const journalRouter = require('./routes/journal');
 const statsRouter   = require('./routes/stats');
+const jobsRouter    = require('./routes/jobs');
 
 const app = express();
 
@@ -21,6 +22,7 @@ app.use('/api', signalsRouter);
 app.use('/api', runsRouter);
 app.use('/api', journalRouter);
 app.use('/api', statsRouter);
+app.use('/api/jobs', jobsRouter);
 
 // 404 fallback
 app.use((req, res) => {

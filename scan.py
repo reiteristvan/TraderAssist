@@ -353,8 +353,110 @@ def cmd_universe(args) -> None:
         print("Usage: scan.py universe {build --index sp500|sp400|sp600 --out FILE | audit --file FILE}")
 
 
+def _process_diagnose_job(conn, job: dict) -> str:
+    """Run a diagnose job; returns the new signal's row id as result_ref."""
+    import json as _json
+    from scanner import store_db as _db
+
+    params = _json.loads(job.get("params_json") or "{}")
+    ticker = params.get("ticker", "").strip().upper()
+    strategy = params.get("strategy", "pullback")
+    if not ticker:
+        raise ValueError("diagnose job missing 'ticker' param")
+    if strategy == "pullback":
+        from scanner.strategies.pullback import evaluate
+    elif strategy == "breakout":
+        from scanner.strategies.breakout import evaluate
+    else:
+        raise ValueError(f"unknown strategy: {strategy!r}")
+
+    from scanner.core import run_scan
+    df_out = run_scan([ticker], evaluate, as_of=None, verbose=False,
+                      capture_all=True, attach_risk=True, compute_conf=True)
+    if df_out.empty:
+        raise ValueError(f"no data available for {ticker}")
+
+    row = df_out.iloc[0].to_dict()
+    run_id = f"diagnose_{job['id']}"
+    gate_detail = row.get("gate_detail") or []
+    failed = row.get("failed_gates") or []
+
+    sig = {
+        "date": str(row.get("as_of", "")),
+        "ticker": ticker,
+        "strategy": strategy,
+        "source": "diagnose",
+        "run_id": run_id,
+        "score": row.get("score"),
+        "confidence": row.get("confidence"),
+        "stop": row.get("suggested_stop"),
+        "target": row.get("suggested_target"),
+        "atr": row.get("atr"),
+        "qualified": 1 if row.get("qualified") else 0,
+        "failed_gates": ";".join(failed) if isinstance(failed, list) else (failed or ""),
+        "close": row.get("close"),
+        "gate_detail_json": _json.dumps(gate_detail),
+        "ath_zone": row.get("ath_zone"),
+    }
+    cur = conn.execute(
+        """INSERT OR REPLACE INTO signals
+           (date, ticker, strategy, source, run_id, score, confidence,
+            stop, target, atr, qualified, failed_gates, close,
+            gate_detail_json, ath_zone)
+           VALUES (:date, :ticker, :strategy, :source, :run_id, :score, :confidence,
+                   :stop, :target, :atr, :qualified, :failed_gates, :close,
+                   :gate_detail_json, :ath_zone)""",
+        sig,
+    )
+    conn.commit()
+    return str(cur.lastrowid)
+
+
+_JOB_HANDLERS: dict = {
+    "diagnose": _process_diagnose_job,
+}
+
+
 def cmd_worker(args) -> None:
-    print("worker: not yet implemented (E12.6). Run after Sprint 6.")
+    """Process queued jobs from the jobs table. --once drains the queue and exits."""
+    import time as _time
+    from scanner import store_db as _db
+
+    once = getattr(args, "once", False)
+    poll_interval = getattr(args, "poll_interval", 10)
+
+    conn = _db.get_connection()
+    _db.migrate(conn=conn)
+
+    stale = _db.reset_stale_jobs(conn)
+    if stale:
+        print(f"worker: re-queued {stale} stale job(s)")
+
+    print(f"worker: started (once={once}, poll={poll_interval}s)")
+    while True:
+        job = _db.claim_next_job(conn)
+        if job is None:
+            if once:
+                print("worker: queue empty, exiting")
+                break
+            _time.sleep(poll_interval)
+            continue
+
+        kind = job["kind"]
+        jid = job["id"]
+        print(f"worker: processing job #{jid} ({kind})")
+        handler = _JOB_HANDLERS.get(kind)
+        if handler is None:
+            _db.fail_job(conn, jid, f"unknown job kind: {kind!r}")
+            print(f"worker: job #{jid} failed — unknown kind")
+            continue
+        try:
+            result_ref = handler(conn, job)
+            _db.complete_job(conn, jid, result_ref)
+            print(f"worker: job #{jid} done — result_ref={result_ref}")
+        except Exception as exc:
+            _db.fail_job(conn, jid, str(exc))
+            print(f"worker: job #{jid} error — {exc}", file=sys.stderr)
 
 
 # ── argument parser ───────────────────────────────────────────────────────────
@@ -437,8 +539,12 @@ def build_parser() -> argparse.ArgumentParser:
     aud_p = univ_sub.add_parser("audit", help="Audit a universe file for bad tickers")
     aud_p.add_argument("--file", metavar="PATH", required=True)
 
-    # ── worker (stub — E12.6) ─────────────────────────────────────────────────
-    sub.add_parser("worker", help="(stub — E12.6)")
+    # ── worker (E12.6) ───────────────────────────────────────────────────────
+    wk_p = sub.add_parser("worker", help="Process queued jobs (on-demand diagnose/backtest)")
+    wk_p.add_argument("--once", action="store_true",
+                      help="Drain the queue once and exit (vs. continuous loop)")
+    wk_p.add_argument("--poll-interval", type=int, default=10, metavar="SEC",
+                      help="Seconds to wait between queue polls in continuous mode (default 10)")
 
     return p
 

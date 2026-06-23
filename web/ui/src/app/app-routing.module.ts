@@ -12,6 +12,7 @@ const routes: Routes = [
   { path: '',              redirectTo: 'dashboard', pathMatch: 'full' },
   { path: 'dashboard',    component: DashboardComponent },
   { path: 'candidates',   component: CandidatesComponent },
+  { path: 'diagnosis',     component: DiagnosisComponent },
   { path: 'diagnosis/:id', component: DiagnosisComponent },
   { path: 'journal',      component: JournalComponent },
   { path: 'backtests',    component: BacktestsComponent },

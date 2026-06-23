@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { ApiService, Signal, GateEntry } from '../../services/api.service';
 
@@ -12,25 +12,85 @@ export interface GateSection {
   templateUrl: './diagnosis.component.html',
   styleUrls: ['./diagnosis.component.css']
 })
-export class DiagnosisComponent implements OnInit {
+export class DiagnosisComponent implements OnInit, OnDestroy {
   signal: Signal | null = null;
   sections: GateSection[] = [];
   loading = true;
   notFound = false;
 
+  // On-demand diagnose state (shown when no :id in route)
+  onDemand = false;
+  onDemandTicker = '';
+  onDemandStrategy = 'pullback';
+  jobStatus: 'idle' | 'queued' | 'running' | 'done' | 'error' = 'idle';
+  jobError: string | null = null;
+
   accountSize = 6500;
   riskPct = 1;
+
+  private _pollTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private route: ActivatedRoute, private api: ApiService) {}
 
   ngOnInit(): void {
-    const id = Number(this.route.snapshot.paramMap.get('id'));
+    const idParam = this.route.snapshot.paramMap.get('id');
+    if (!idParam) {
+      this.onDemand = true;
+      this.loading = false;
+      return;
+    }
+    const id = Number(idParam);
     if (isNaN(id)) { this.notFound = true; this.loading = false; return; }
     this.api.getSignal(id).subscribe(s => {
       this.signal = s;
       this.notFound = s === null;
       if (s?.gate_detail) this.sections = this._buildSections(s.gate_detail);
       this.loading = false;
+    });
+  }
+
+  ngOnDestroy(): void {
+    if (this._pollTimer) clearTimeout(this._pollTimer);
+  }
+
+  startDiagnose(): void {
+    const ticker = this.onDemandTicker.trim().toUpperCase();
+    if (!ticker) return;
+    this.jobStatus = 'queued';
+    this.jobError = null;
+    this.signal = null;
+    this.sections = [];
+
+    this.api.postJob('diagnose', { ticker, strategy: this.onDemandStrategy }).subscribe(res => {
+      if (!res) {
+        this.jobStatus = 'error';
+        this.jobError = 'Failed to enqueue job — is the API running?';
+        return;
+      }
+      this._pollJob(res.id);
+    });
+  }
+
+  private _pollJob(jobId: number): void {
+    this.api.pollJob(jobId).subscribe(job => {
+      if (!job) {
+        this.jobStatus = 'error';
+        this.jobError = 'Lost contact with the API.';
+        return;
+      }
+      this.jobStatus = job.status as typeof this.jobStatus;
+
+      if (job.status === 'done' && job.result_ref) {
+        this.api.getSignal(Number(job.result_ref)).subscribe(s => {
+          this.signal = s;
+          this.notFound = s === null;
+          if (s?.gate_detail) this.sections = this._buildSections(s.gate_detail);
+        });
+      } else if (job.status === 'error') {
+        this.jobError = job.result_ref || 'Worker reported an error.';
+      } else {
+        this._pollTimer = setTimeout(() => this._pollJob(jobId), 1500);
+      }
     });
   }
 

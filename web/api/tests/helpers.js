@@ -40,7 +40,15 @@ function makeTmpDb({ withScanRun = true, withBacktest = false, withSignals = tru
       run_id TEXT PRIMARY KEY REFERENCES runs(run_id),
       metrics_json TEXT, biases_json TEXT
     );
-    INSERT INTO schema_version VALUES (3);
+    CREATE TABLE jobs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      kind TEXT NOT NULL, params_json TEXT,
+      status TEXT NOT NULL DEFAULT 'queued',
+      result_ref TEXT, claimed_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      finished_at TEXT
+    );
+    INSERT INTO schema_version VALUES (4);
   `);
 
   if (withScanRun) {
