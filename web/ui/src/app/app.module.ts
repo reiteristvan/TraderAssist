@@ -11,6 +11,7 @@ import { DiagnosisComponent } from './pages/diagnosis/diagnosis.component';
 import { JournalComponent } from './pages/journal/journal.component';
 import { BacktestsComponent } from './pages/backtests/backtests.component';
 import { CalibrationComponent } from './pages/calibration/calibration.component';
+import { GatePassCountPipe } from './shared/gate-pass-count.pipe';
 
 @NgModule({
   declarations: [
@@ -20,7 +21,8 @@ import { CalibrationComponent } from './pages/calibration/calibration.component'
     DiagnosisComponent,
     JournalComponent,
     BacktestsComponent,
-    CalibrationComponent
+    CalibrationComponent,
+    GatePassCountPipe
   ],
   imports: [
     BrowserModule,

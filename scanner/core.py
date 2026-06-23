@@ -77,6 +77,7 @@ class GateLog:
             print(f"\n=== {ticker} ===")
 
     def section(self, title: str) -> None:
+        self._log.append({"name": title, "status": "section", "detail": ""})
         if self._verbose:
             print(f"{title}:")
 

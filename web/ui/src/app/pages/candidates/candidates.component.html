@@ -1,28 +1,30 @@
 <div class="page-header">
   <h1>Candidates</h1>
-  <span class="page-subtitle">Tonight's qualified setups</span>
+  <span class="page-subtitle">Tonight's qualified setups · {{ signals.length }} signal{{ signals.length === 1 ? '' : 's' }}</span>
 </div>
 
 <!-- Filters -->
-<div class="card" style="display:flex; gap:12px; flex-wrap:wrap; align-items:center; padding:12px 16px;">
-  <label>Strategy
-    <select [(ngModel)]="filterStrategy" (change)="load()" style="margin-left:6px;">
+<div class="filter-bar card">
+  <label>
+    Strategy
+    <select [(ngModel)]="filterStrategy" (change)="load()">
       <option value="">All</option>
       <option value="pullback">Pullback</option>
       <option value="breakout">Breakout</option>
     </select>
   </label>
-  <label>Confidence
-    <select [(ngModel)]="filterConfidence" (change)="load()" style="margin-left:6px;">
+  <label>
+    Confidence
+    <select [(ngModel)]="filterConfidence" (change)="load()">
       <option value="">All</option>
       <option value="HIGH">High</option>
       <option value="MEDIUM">Medium</option>
       <option value="LOW">Low</option>
     </select>
   </label>
-  <label>Min score
-    <input type="number" [(ngModel)]="filterMinScore" (change)="load()"
-           placeholder="0" style="margin-left:6px; width:70px;">
+  <label>
+    Min score
+    <input type="number" [(ngModel)]="filterMinScore" (change)="load()" placeholder="0" style="width:70px;">
   </label>
 </div>
 
@@ -30,29 +32,32 @@
 
 <div *ngIf="!loading && signals.length === 0" class="empty-state">
   <strong>No candidates match the current filters.</strong>
-  <p>Try relaxing filters or run the scanner to generate fresh signals.</p>
+  <p>Run the scanner to generate signals, or relax the filters above.</p>
 </div>
 
-<div class="card" style="padding:0; overflow:hidden;" *ngIf="!loading && signals.length > 0">
-  <table>
+<div class="card cand-table-wrap" *ngIf="!loading && signals.length > 0">
+  <table class="cand-table">
     <thead>
       <tr>
-        <th (click)="sort('ticker')" style="cursor:pointer">Ticker</th>
-        <th (click)="sort('strategy')" style="cursor:pointer">Strategy</th>
-        <th (click)="sort('score')" style="cursor:pointer">Score ↕</th>
-        <th (click)="sort('confidence')" style="cursor:pointer">Conf</th>
-        <th>Entry</th>
-        <th>Stop</th>
-        <th>Target</th>
-        <th>R/R</th>
+        <th (click)="sort('ticker')">Ticker{{ sortIcon('ticker') }}</th>
+        <th (click)="sort('strategy')">Strategy{{ sortIcon('strategy') }}</th>
+        <th (click)="sort('score')" class="num">Score{{ sortIcon('score') }}</th>
+        <th>Conf</th>
+        <th class="num">Entry</th>
+        <th class="num">Stop</th>
+        <th class="num">Stop %</th>
+        <th class="num">Target</th>
+        <th class="num">R/R</th>
         <th>ATH zone</th>
       </tr>
     </thead>
     <tbody>
-      <tr *ngFor="let s of sorted">
-        <td><a [routerLink]="['/diagnosis', s.id]">{{ s.ticker }}</a></td>
+      <tr *ngFor="let s of sorted" [class.near-ath]="s.ath_zone === 'NEW_ATH' || s.ath_zone === 'NEAR_ATH'">
+        <td class="ticker-cell">
+          <a [routerLink]="['/diagnosis', s.id]">{{ s.ticker }}</a>
+        </td>
         <td>{{ s.strategy }}</td>
-        <td>{{ s.score | number:'1.0-0' }}</td>
+        <td class="num">{{ s.score | number:'1.0-0' }}</td>
         <td>
           <span class="badge"
             [class.badge-high]="s.confidence === 'HIGH'"
@@ -61,11 +66,14 @@
             {{ s.confidence ?? '—' }}
           </span>
         </td>
-        <td>{{ s.close | number:'1.2-2' }}</td>
-        <td>{{ s.stop  | number:'1.2-2' }}</td>
-        <td>{{ s.target | number:'1.2-2' }}</td>
-        <td>{{ rr(s) }}</td>
-        <td>{{ s.ath_zone ?? '—' }}</td>
+        <td class="num">{{ s.close | number:'1.2-2' }}</td>
+        <td class="num stop-col">{{ s.stop | number:'1.2-2' }}</td>
+        <td class="num muted">{{ stopPct(s) }}</td>
+        <td class="num target-col">{{ s.target | number:'1.2-2' }}</td>
+        <td class="num" [class.good-rr]="rrNum(s) >= 2" [class.ok-rr]="rrNum(s) >= 1.5 && rrNum(s) < 2">
+          {{ rr(s) }}
+        </td>
+        <td class="muted">{{ s.ath_zone ?? '—' }}</td>
       </tr>
     </tbody>
   </table>

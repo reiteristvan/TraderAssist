@@ -22,8 +22,8 @@ export class CandidatesComponent implements OnInit {
   load(): void {
     this.loading = true;
     const f: any = {};
-    if (this.filterStrategy)   f.strategy = this.filterStrategy;
-    if (this.filterConfidence) f.confidence = this.filterConfidence;
+    if (this.filterStrategy)        f.strategy  = this.filterStrategy;
+    if (this.filterConfidence)      f.confidence = this.filterConfidence;
     if (this.filterMinScore != null) f.min_score = this.filterMinScore;
     this.api.getLatestSignals(f).subscribe(r => {
       this.signals = r?.signals ?? [];
@@ -32,8 +32,13 @@ export class CandidatesComponent implements OnInit {
   }
 
   sort(col: string): void {
-    if (this.sortCol === col) { this.sortAsc = !this.sortAsc; }
+    if (this.sortCol === col) this.sortAsc = !this.sortAsc;
     else { this.sortCol = col; this.sortAsc = false; }
+  }
+
+  sortIcon(col: string): string {
+    if (this.sortCol !== col) return '';
+    return this.sortAsc ? ' ↑' : ' ↓';
   }
 
   get sorted(): Signal[] {
@@ -49,5 +54,15 @@ export class CandidatesComponent implements OnInit {
     if (s.stop == null || s.target == null || s.close == null) return '—';
     const r = (s.target - s.close) / (s.close - s.stop);
     return isFinite(r) ? r.toFixed(2) + 'R' : '—';
+  }
+
+  rrNum(s: Signal): number {
+    if (s.stop == null || s.target == null || s.close == null) return 0;
+    return (s.target - s.close) / (s.close - s.stop);
+  }
+
+  stopPct(s: Signal): string {
+    if (s.close == null || s.stop == null) return '—';
+    return ((s.close - s.stop) / s.close * 100).toFixed(1) + '%';
   }
 }

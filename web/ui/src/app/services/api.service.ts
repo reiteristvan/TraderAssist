@@ -5,7 +5,7 @@ import { catchError } from 'rxjs/operators';
 
 export interface GateEntry {
   name: string;
-  status: 'pass' | 'fail' | 'skip' | 'bonus_pass' | 'bonus_fail';
+  status: 'pass' | 'fail' | 'skip' | 'bonus_pass' | 'bonus_fail' | 'section';
   detail: string;
 }
 
