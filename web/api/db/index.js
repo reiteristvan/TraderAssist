@@ -104,7 +104,21 @@ function getLatestSignals({ strategy, minScore, confidence } = {}) {
 function getSignalById(id) {
   const db = getDb();
   if (!db) return null;
-  return db.prepare('SELECT * FROM signals WHERE id = ?').get(Number(id)) || null;
+  const row = db.prepare('SELECT * FROM signals WHERE id = ?').get(Number(id));
+  if (!row) return null;
+  return _parseSignalJson(row);
+}
+
+function _parseSignalJson(row) {
+  const out = Object.assign({}, row);
+  if (out.gate_detail_json) {
+    try { out.gate_detail = JSON.parse(out.gate_detail_json); }
+    catch (_) { out.gate_detail = []; }
+    delete out.gate_detail_json;
+  } else {
+    out.gate_detail = [];
+  }
+  return out;
 }
 
 function getSignalHistory({ from, to, status, strategy } = {}) {

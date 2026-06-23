@@ -47,6 +47,7 @@ def write_live_signals(
             "qualified": 1 if row.get("qualified") else 0,
             "failed_gates": ";".join(row.get("failed_gates") or []),
             "close": row.get("close"),
+            "gate_detail_json": json.dumps(row.get("gate_detail") or []),
         })
     n = store_db.insert_signals_batch(conn, sigs)
     conn.close()

@@ -6,7 +6,7 @@ Zero network I/O. See CLAUDE.md EPIC E3.
 from __future__ import annotations
 
 import warnings
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from typing import Optional
 
@@ -66,6 +66,8 @@ class BreakoutResult:
     atr: Optional[float] = None
     # E4.3 — populated by run_scan(); None until then
     confidence: Optional[str] = None
+    # E12.2a — ordered gate log for UI diagnosis view; JSON-serialized when stored
+    gate_detail: list = field(default_factory=list)
 
 
 def evaluate(ticker: str, df: pd.DataFrame, ctx: EvalContext,
@@ -181,4 +183,5 @@ def evaluate(ticker: str, df: pd.DataFrame, ctx: EvalContext,
         gates_total     = log.gates_total,
         as_of           = ctx.as_of,
         days_to_earnings = ctx.days_to_earnings,
+        gate_detail     = log.to_detail_list(),
     )

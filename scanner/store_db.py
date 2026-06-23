@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 _DEFAULT_DB = Path("data/scanner.db")
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
 
 # ── DDL ───────────────────────────────────────────────────────────────────────
 
@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS signals (
     qualified   INTEGER NOT NULL DEFAULT 1,
     failed_gates TEXT,
     close       REAL,
+    gate_detail_json TEXT,
     outcome_checked_at TEXT,
     entry_px    REAL,
     exit_px     REAL,
@@ -78,15 +79,21 @@ def get_connection(db_path: Optional[Path] = None) -> sqlite3.Connection:
 
 
 def migrate(db_path: Optional[Path] = None, conn: Optional[sqlite3.Connection] = None) -> None:
-    """Create tables and schema_version if absent. Idempotent."""
+    """Create tables if absent and run incremental migrations. Idempotent."""
     own = conn is None
     if own:
         conn = get_connection(db_path)
     try:
         conn.executescript(_DDL)
         ver = conn.execute("SELECT version FROM schema_version").fetchone()
+        current = int(ver["version"]) if ver else 0
         if ver is None:
             conn.execute("INSERT INTO schema_version (version) VALUES (?)", (_SCHEMA_VERSION,))
+        else:
+            # v1 → v2: add gate_detail_json column to signals
+            if current < 2:
+                conn.execute("ALTER TABLE signals ADD COLUMN gate_detail_json TEXT")
+                conn.execute("UPDATE schema_version SET version = 2")
         conn.commit()
     finally:
         if own:
@@ -133,10 +140,11 @@ def insert_signal(conn: sqlite3.Connection, sig: dict) -> None:
     conn.execute(
         """INSERT OR IGNORE INTO signals
            (date, ticker, strategy, source, run_id, score, confidence,
-            stop, target, atr, qualified, failed_gates, close)
+            stop, target, atr, qualified, failed_gates, close, gate_detail_json)
            VALUES (:date, :ticker, :strategy, :source, :run_id, :score, :confidence,
-                   :stop, :target, :atr, :qualified, :failed_gates, :close)""",
-        sig,
+                   :stop, :target, :atr, :qualified, :failed_gates, :close,
+                   :gate_detail_json)""",
+        {**sig, "gate_detail_json": sig.get("gate_detail_json")},
     )
     conn.commit()
 
@@ -148,10 +156,11 @@ def insert_signals_batch(conn: sqlite3.Connection, sigs: list[dict]) -> int:
         cur = conn.execute(
             """INSERT OR IGNORE INTO signals
                (date, ticker, strategy, source, run_id, score, confidence,
-                stop, target, atr, qualified, failed_gates, close)
+                stop, target, atr, qualified, failed_gates, close, gate_detail_json)
                VALUES (:date, :ticker, :strategy, :source, :run_id, :score, :confidence,
-                       :stop, :target, :atr, :qualified, :failed_gates, :close)""",
-            sig,
+                       :stop, :target, :atr, :qualified, :failed_gates, :close,
+                       :gate_detail_json)""",
+            {**sig, "gate_detail_json": sig.get("gate_detail_json")},
         )
         inserted += cur.rowcount
     conn.commit()

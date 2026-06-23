@@ -75,11 +75,11 @@ def test_migrate_idempotent(tmp_path):
     conn = store_db.get_connection(path)
     ver = store_db.get_schema_version(conn)
     conn.close()
-    assert ver == 1
+    assert ver == 2
 
 
 def test_migrate_schema_version_present(db):
-    assert store_db.get_schema_version(db) == 1
+    assert store_db.get_schema_version(db) == 2
 
 
 # ── E9.1 AC3 — round-trip signal ─────────────────────────────────────────────
@@ -196,6 +196,68 @@ def test_insert_and_get_backtest_report(db):
 
 def test_get_run_report_missing(db):
     assert store_db.get_run_report(db, "nonexistent") is None
+
+
+# ── E12.2a — gate_detail_json round-trip ─────────────────────────────────────
+
+def test_gate_detail_round_trip(db):
+    """gate_detail_json stored and readable as a JSON string."""
+    gate_detail = [
+        {"name": "Trend alignment", "status": "pass", "detail": "close > SMA50 > SMA200"},
+        {"name": "Earnings clear", "status": "skip", "detail": "no earnings data"},
+        {"name": "Profitable", "status": "fail", "detail": ""},
+    ]
+    sig = _sample_signal()
+    sig["gate_detail_json"] = json.dumps(gate_detail)
+    store_db.insert_signal(db, sig)
+
+    row = db.execute("SELECT gate_detail_json FROM signals WHERE ticker='AAPL'").fetchone()
+    assert row is not None
+    parsed = json.loads(row["gate_detail_json"])
+    assert len(parsed) == 3
+    assert parsed[0]["name"] == "Trend alignment"
+    assert parsed[1]["status"] == "skip"
+    assert parsed[2]["status"] == "fail"
+
+
+def test_gate_detail_defaults_null(db):
+    """Signals inserted without gate_detail_json have NULL (not an error)."""
+    sig = _sample_signal()  # no gate_detail_json key
+    store_db.insert_signal(db, sig)
+    row = db.execute("SELECT gate_detail_json FROM signals WHERE ticker='AAPL'").fetchone()
+    assert row["gate_detail_json"] is None
+
+
+def test_migrate_v1_to_v2(tmp_path):
+    """Existing v1 DB gets gate_detail_json column added by migrate()."""
+    import sqlite3 as _sqlite3
+    path = tmp_path / "v1.db"
+    # Build a v1 DB manually (no gate_detail_json column)
+    conn = _sqlite3.connect(str(path))
+    conn.execute("""CREATE TABLE schema_version (version INTEGER NOT NULL)""")
+    conn.execute("""CREATE TABLE signals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL, ticker TEXT NOT NULL, strategy TEXT NOT NULL,
+        source TEXT NOT NULL, run_id TEXT NOT NULL,
+        score REAL, confidence TEXT, stop REAL, target REAL, atr REAL,
+        qualified INTEGER NOT NULL DEFAULT 1, failed_gates TEXT, close REAL,
+        outcome_checked_at TEXT, entry_px REAL, exit_px REAL,
+        exit_reason TEXT, r_multiple REAL, holding_days INTEGER, flags TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE (date, ticker, strategy, source, run_id)
+    )""")
+    conn.execute("INSERT INTO schema_version VALUES (1)")
+    conn.commit()
+    conn.close()
+
+    # migrate() should upgrade to v2
+    store_db.migrate(db_path=path)
+    conn2 = store_db.get_connection(path)
+    assert store_db.get_schema_version(conn2) == 2
+    # Column must now exist
+    cols = [r[1] for r in conn2.execute("PRAGMA table_info(signals)").fetchall()]
+    assert "gate_detail_json" in cols
+    conn2.close()
 
 
 # ── batch insert ──────────────────────────────────────────────────────────────

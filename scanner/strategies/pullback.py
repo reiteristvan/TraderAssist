@@ -6,7 +6,7 @@ See CLAUDE.md EPIC E2.
 from __future__ import annotations
 
 import warnings
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from typing import Optional
 
@@ -92,6 +92,8 @@ class PullbackResult:
     atr: Optional[float] = None
     # E4.3 — populated by run_scan(); None until then
     confidence: Optional[str] = None
+    # E12.2a — ordered gate log for UI diagnosis view; JSON-serialized when stored
+    gate_detail: list = field(default_factory=list)
 
 
 def evaluate(ticker: str, df: pd.DataFrame, ctx: EvalContext,
@@ -376,4 +378,5 @@ def evaluate(ticker: str, df: pd.DataFrame, ctx: EvalContext,
         gates_total             = log.gates_total,
         score                   = round(score, 1),
         as_of                   = ctx.as_of,
+        gate_detail             = log.to_detail_list(),
     )

@@ -57,6 +57,44 @@ def test_qualified_all_pass():
     assert log.failed_gates == []
 
 
+# ── E12.2a — GateLog.to_detail_list() ────────────────────────────────────────
+
+def test_to_detail_list_entries():
+    log = GateLog("T")
+    log.gate("Gate A", True, "some detail")
+    log.gate("Gate B", False, "")
+    log.skip("Gate C", "no data")
+    log.bonus("Bonus X", True, "bonus detail")
+    log.bonus("Bonus Y", False)
+    detail = log.to_detail_list()
+    assert len(detail) == 5
+    assert detail[0] == {"name": "Gate A", "status": "pass", "detail": "some detail"}
+    assert detail[1] == {"name": "Gate B", "status": "fail", "detail": ""}
+    assert detail[2] == {"name": "Gate C", "status": "skip", "detail": "no data"}
+    assert detail[3] == {"name": "Bonus X", "status": "bonus_pass", "detail": "bonus detail"}
+    assert detail[4] == {"name": "Bonus Y", "status": "bonus_fail", "detail": ""}
+
+
+def test_to_detail_list_is_copy():
+    """Returns a new list each call; mutations don't affect the log."""
+    log = GateLog("T")
+    log.gate("A", True)
+    d1 = log.to_detail_list()
+    d1.append({"name": "INJECTED"})
+    d2 = log.to_detail_list()
+    assert len(d2) == 1  # injection not reflected
+
+
+def test_to_detail_list_ordering():
+    """Entries are in call order."""
+    log = GateLog("T")
+    names = ["First", "Second", "Third"]
+    for n in names:
+        log.gate(n, True)
+    detail = log.to_detail_list()
+    assert [d["name"] for d in detail] == names
+
+
 # ── Earnings parser tests ─────────────────────────────────────────────────────
 
 def _patch_calendar(monkeypatch, cal_value):

@@ -72,6 +72,7 @@ class GateLog:
         self._failed: list[str] = []
         self._skipped: list[str] = []
         self._total = 0
+        self._log: list[dict] = []   # ordered record of every gate/skip/bonus call
         if verbose:
             print(f"\n=== {ticker} ===")
 
@@ -83,6 +84,7 @@ class GateLog:
         self._total += 1
         if not passed:
             self._failed.append(name)
+        self._log.append({"name": name, "status": "pass" if passed else "fail", "detail": detail})
         if self._verbose:
             mark = "✓" if passed else "✗"
             d = f" ({detail})" if detail else ""
@@ -91,14 +93,20 @@ class GateLog:
 
     def skip(self, name: str, reason: str) -> None:
         self._skipped.append(name)
+        self._log.append({"name": name, "status": "skip", "detail": reason})
         if self._verbose:
             print(f"  – {name} (skipped: {reason})")
 
     def bonus(self, name: str, present: bool, detail: str = "") -> None:
+        self._log.append({"name": name, "status": "bonus_pass" if present else "bonus_fail", "detail": detail})
         if self._verbose:
             mark = "✓" if present else "✗"
             d = f" ({detail})" if detail else ""
             print(f"  {mark} {name}{d}")
+
+    def to_detail_list(self) -> list[dict]:
+        """Ordered list of {name, status, detail} for every gate/skip/bonus."""
+        return list(self._log)
 
     @property
     def failed_gates(self) -> list[str]:
