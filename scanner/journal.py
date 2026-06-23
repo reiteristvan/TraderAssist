@@ -22,15 +22,31 @@ def write_live_signals(
     rows: list[dict],
     strategy: str,
     run_id: str,
+    universe: str = "",
     db_path: Optional[Path] = None,
 ) -> int:
     """Write qualifying live signals to scanner.db. Returns count inserted.
 
     run_id for live scans is the trading date string (YYYY-MM-DD) so
     re-scans on the same day produce no duplicates (INSERT OR IGNORE).
+    Also writes/updates the corresponding runs row so the Express API can
+    find the latest scan via the runs table.
     """
     conn = store_db.get_connection(db_path)
     store_db.migrate(conn=conn)
+
+    now_iso = datetime.now().isoformat()
+    store_db.insert_run(conn, {
+        "run_id": run_id,
+        "kind": "scan",
+        "strategy": strategy,
+        "universe": universe,
+        "params_json": "{}",
+        "started_at": now_iso,
+        "finished_at": now_iso,
+        "signal_count": len(rows),
+    })
+
     sigs = []
     for row in rows:
         sigs.append({

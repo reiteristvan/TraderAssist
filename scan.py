@@ -17,6 +17,12 @@ import sys
 from datetime import date
 from pathlib import Path
 
+# Windows consoles default to cp1252; force UTF-8 so ✓/✗/– render correctly.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -145,13 +151,15 @@ def cmd_scan(args) -> None:
             from scanner.journal import write_live_signals
             from scanner.core import last_closed_session
             run_date = str(as_of) if as_of else str(last_closed_session())
+            universe_label = getattr(args, "file", None) or getattr(args, "ticker", None) or ""
             qualified_rows = combined[combined["qualified"]].to_dict("records")
-            if qualified_rows:
-                for strat in strategies:
-                    strat_rows = [r for r in qualified_rows if r.get("strategy") == strat]
-                    if strat_rows:
-                        n = write_live_signals(strat_rows, strat, run_date)
-                        print(f"  [{strat}] {n} signal(s) written to scanner.db (run_id={run_date})")
+            for strat in strategies:
+                strat_rows = [r for r in qualified_rows if r.get("strategy") == strat]
+                n = write_live_signals(strat_rows, strat, run_date, universe=universe_label)
+                if strat_rows:
+                    print(f"  [{strat}] {n} signal(s) written to scanner.db (run_id={run_date})")
+                else:
+                    print(f"  [{strat}] 0 qualified signals — run row recorded (run_id={run_date})")
         except Exception as exc:
             print(f"  [journal] DB write skipped: {exc}")
 
