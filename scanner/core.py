@@ -344,22 +344,37 @@ def last_closed_session(now=None) -> date:
 # ── Context factory (E2.4) ────────────────────────────────────────────────────
 
 def _make_quality_info(ticker: str) -> QualityInfo:
+    import time, random, logging as _logging
+    _qlog = _logging.getLogger("scanner.quality")
     profitable = False
     market_cap = None
     debt_equity = None
     sector = None
     float_shares = None
-    try:
-        info = yf.Ticker(ticker).info or {}
-        op_inc  = info.get("operatingIncome") or 0
-        fwd_eps = info.get("forwardEps") or 0
-        profitable   = (op_inc > 0) or (fwd_eps > 0)
-        market_cap   = info.get("marketCap")
-        debt_equity  = info.get("debtToEquity")
-        sector       = info.get("sector")
-        float_shares = info.get("floatShares")
-    except Exception:
-        pass
+    info: dict = {}
+    for attempt in range(3):
+        try:
+            info = yf.Ticker(ticker).info or {}
+            # yfinance returns a near-empty dict (just {quoteType, ...}) when
+            # rate-limited; treat that as a failed fetch and retry.
+            if info.get("operatingIncome") is None and info.get("forwardEps") is None \
+                    and info.get("marketCap") is None and attempt < 2:
+                raise ValueError("empty info — likely rate-limited")
+            break
+        except Exception as exc:
+            wait = 2 ** attempt + random.uniform(0, 1)
+            _qlog.warning("quality fetch %s attempt %d failed (%s) — retry in %.1fs",
+                          ticker, attempt + 1, exc, wait)
+            time.sleep(wait)
+    op_inc  = info.get("operatingIncome") or 0
+    fwd_eps = info.get("forwardEps") or 0
+    if op_inc or fwd_eps:
+        profitable = (op_inc > 0) or (fwd_eps > 0)
+    # profitable stays False (conservative default) when info unfetchable — intentional.
+    market_cap   = info.get("marketCap")
+    debt_equity  = info.get("debtToEquity")
+    sector       = info.get("sector")
+    float_shares = info.get("floatShares")
     return QualityInfo(
         profitable=profitable, market_cap=market_cap, debt_equity=debt_equity,
         sector=sector, float_shares=float_shares,
@@ -417,8 +432,14 @@ def make_context(ticker: str, as_of: date | None = None) -> Optional[EvalContext
 
 
 def make_contexts(tickers: Iterable[str],
-                  as_of: date | None = None) -> dict[str, EvalContext]:
-    """Batch context builder — loads market data once."""
+                  as_of: date | None = None,
+                  quality_pause: float = 0.15) -> dict[str, EvalContext]:
+    """Batch context builder — loads market data once.
+
+    quality_pause: seconds between yfinance .info calls to avoid rate-limiting.
+    Set to 0 in tests (monkeypatched) or when running against a local cache.
+    """
+    import time
     from scanner.data_store import get_history, get_weekly, get_market_data
     from scanner.earnings_store import days_to_earnings as _earn_days_hist
     market_data = get_market_data(end=as_of)
@@ -429,6 +450,8 @@ def make_contexts(tickers: Iterable[str],
             continue
         as_of_date = as_of if as_of is not None else df.index[-1].date()
         weekly = get_weekly(ticker, end=as_of_date)
+        if quality_pause > 0:
+            time.sleep(quality_pause)
         quality = _make_quality_info(ticker)
         if as_of is None:
             days = _days_to_earnings(ticker, as_of_date)
