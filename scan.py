@@ -264,6 +264,7 @@ def cmd_backtest(args) -> None:
             if d[k] is not None:
                 d[k] = str(d[k])
         d["failed_gates"] = ";".join(d["failed_gates"])
+        d["flags"] = json.dumps(d["flags"])
         all_trade_dicts.append(d)
     pd.DataFrame(all_trade_dicts).to_parquet(out_dir / "trades.parquet", index=False)
 
