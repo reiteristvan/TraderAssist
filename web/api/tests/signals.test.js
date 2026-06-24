@@ -143,6 +143,64 @@ describe('GET /api/signals/:id', () => {
   });
 });
 
+// ── PATCH /api/signals/:id ───────────────────────────────────────────────────
+
+describe('PATCH /api/signals/:id', () => {
+  let app, tmpDb;
+
+  beforeAll(() => {
+    tmpDb = makeTmpDb({ withScanRun: true, withSignals: true });
+    app = loadApp(tmpDb);
+  });
+  afterAll(() => { db._reset(); cleanup(tmpDb); });
+
+  it('dismisses an open signal with a note', async () => {
+    const res = await request(app).patch('/api/signals/2')
+      .send({ exit_reason: 'dismissed', notes: 'Sector too weak' });
+    expect(res.status).toBe(200);
+    expect(res.body.exit_reason).toBe('dismissed');
+    expect(res.body.notes).toBe('Sector too weak');
+    expect(res.body.outcome_checked_at).toBeTruthy();
+  });
+
+  it('closes a signal with entry/exit prices and r_multiple', async () => {
+    const res = await request(app).patch('/api/signals/1')
+      .send({ exit_reason: 'target', entry_px: 181.0, exit_px: 200.0, r_multiple: 0.76 });
+    expect(res.status).toBe(200);
+    expect(res.body.exit_reason).toBe('target');
+    expect(res.body.entry_px).toBeCloseTo(181.0);
+    expect(res.body.exit_px).toBeCloseTo(200.0);
+    expect(res.body.r_multiple).toBeCloseTo(0.76);
+  });
+
+  it('returns 400 for invalid signal id', async () => {
+    const res = await request(app).patch('/api/signals/abc').send({ exit_reason: 'dismissed' });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 when exit_reason is missing', async () => {
+    const res = await request(app).patch('/api/signals/1').send({});
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 for unknown exit_reason', async () => {
+    const res = await request(app).patch('/api/signals/1').send({ exit_reason: 'garbage' });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 404 for unknown signal id', async () => {
+    const res = await request(app).patch('/api/signals/9999').send({ exit_reason: 'dismissed' });
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 503 when DB is missing', async () => {
+    const noDbApp = loadApp('/nonexistent/scanner.db');
+    const res = await request(noDbApp).patch('/api/signals/1').send({ exit_reason: 'dismissed' });
+    expect(res.status).toBe(503);
+    db._reset();
+  });
+});
+
 // ── /api/signals/history ─────────────────────────────────────────────────────
 
 describe('GET /api/signals/history', () => {

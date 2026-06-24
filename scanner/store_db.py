@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 _DEFAULT_DB = Path("data/scanner.db")
-_SCHEMA_VERSION = 5
+_SCHEMA_VERSION = 6
 
 # ── DDL ───────────────────────────────────────────────────────────────────────
 
@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS signals (
     r_multiple  REAL,
     holding_days INTEGER,
     flags       TEXT,
+    notes       TEXT,
     created_at  TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE (date, ticker, strategy, source, run_id)
 );
@@ -128,6 +129,10 @@ def migrate(db_path: Optional[Path] = None, conn: Optional[sqlite3.Connection] =
             if current < 5:
                 # bars table already created by executescript(_DDL) above
                 conn.execute("UPDATE schema_version SET version = 5")
+                current = 5
+            if current < 6:
+                conn.execute("ALTER TABLE signals ADD COLUMN notes TEXT")
+                conn.execute("UPDATE schema_version SET version = 6")
         conn.commit()
     finally:
         if own:

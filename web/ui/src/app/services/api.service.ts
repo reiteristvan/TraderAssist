@@ -32,6 +32,7 @@ export interface Signal {
   exit_reason: string | null;
   r_multiple: number | null;
   holding_days: number | null;
+  notes: string | null;
 }
 
 export interface CoreMetrics {
@@ -189,6 +190,19 @@ export class ApiService {
   getJournalCompare(backtestRunId: string): Observable<JournalCompare | null> {
     const params = new HttpParams().set('backtest_run', backtestRunId);
     return this.http.get<JournalCompare>(`${this.base}/journal/compare`, { params }).pipe(
+      catchError(() => of(null))
+    );
+  }
+
+  updateSignal(id: number, data: {
+    exit_reason: string;
+    entry_px?: number | null;
+    exit_px?: number | null;
+    r_multiple?: number | null;
+    holding_days?: number | null;
+    notes?: string | null;
+  }): Observable<Signal | null> {
+    return this.http.patch<Signal>(`${this.base}/signals/${id}`, data).pipe(
       catchError(() => of(null))
     );
   }

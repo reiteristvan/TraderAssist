@@ -2,6 +2,11 @@
 .negative { color: #c46060; font-weight: 600; }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 
+.badge-dim {
+  background: #2a2a3a;
+  color: #666688;
+}
+
 .filter-bar {
   display: flex;
   gap: 16px;
@@ -16,4 +21,120 @@
   font-size: 12px;
   color: #808090;
   text-transform: uppercase;
+}
+
+.notes-cell {
+  font-size: 11px;
+  color: #808090;
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.actions {
+  white-space: nowrap;
+  text-align: right;
+  padding-right: 12px !important;
+}
+
+.row-active td {
+  background: #16162a;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────────── */
+
+.btn-sm {
+  padding: 3px 10px;
+  font-size: 11px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  transition: opacity 0.15s;
+}
+.btn-sm:disabled { opacity: 0.4; cursor: default; }
+.btn-sm + .btn-sm { margin-left: 6px; }
+
+.btn-primary {
+  background: #4a9eff;
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) { background: #5aaeff; }
+
+.btn-ghost {
+  background: transparent;
+  color: #808090;
+  border: 1px solid #3a3a4a;
+}
+.btn-ghost:hover:not(:disabled) { color: #c0c0d0; border-color: #5a5a7a; }
+
+.btn-ghost-warn {
+  background: transparent;
+  color: #c46060;
+  border: 1px solid #5a3a3a;
+}
+.btn-ghost-warn:hover:not(:disabled) { color: #e07070; border-color: #7a5050; }
+
+/* ── Inline form rows ──────────────────────────────────────────────────────── */
+
+.inline-form-row td {
+  background: #13132a;
+  padding: 14px 16px !important;
+  border-top: 1px solid #2a2a4a;
+  border-bottom: 1px solid #2a2a4a;
+}
+
+.inline-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.form-label {
+  font-size: 12px;
+  color: #a0a0c0;
+  align-self: flex-end;
+  padding-bottom: 6px;
+  min-width: 140px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.form-field span {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #606080;
+  letter-spacing: 0.05em;
+}
+.form-field select,
+.form-field input {
+  background: #0e0e20;
+  border: 1px solid #3a3a5a;
+  color: #c0c0d0;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  height: 28px;
+}
+.form-field input { width: 110px; }
+.form-field input.input-wide { width: 220px; }
+
+.form-hint {
+  font-size: 12px;
+  color: #a0a0c0;
+  font-variant-numeric: tabular-nums;
+  align-self: flex-end;
+  padding-bottom: 6px;
+}
+
+.form-actions {
+  align-self: flex-end;
+  display: flex;
+  gap: 6px;
 }

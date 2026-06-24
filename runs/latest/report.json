@@ -1,0 +1,104 @@
+{
+  "metrics": {
+    "count": 0,
+    "win_rate": null,
+    "avg_win_r": null,
+    "avg_loss_r": null,
+    "expectancy_r": null,
+    "median_holding_days": null,
+    "exit_reason_breakdown": {},
+    "max_drawdown_r": null,
+    "ambiguous_bar_pct": 0.0,
+    "gap_skip_pct": 0.0,
+    "incomplete_pct": 0.0
+  },
+  "score_buckets": [
+    {
+      "bucket": "40\u201354",
+      "n": 0,
+      "win_rate": null,
+      "expectancy_r": null,
+      "verdict": "insufficient n"
+    },
+    {
+      "bucket": "55\u201369",
+      "n": 0,
+      "win_rate": null,
+      "expectancy_r": null,
+      "verdict": "insufficient n"
+    },
+    {
+      "bucket": "70\u201384",
+      "n": 0,
+      "win_rate": null,
+      "expectancy_r": null,
+      "verdict": "insufficient n"
+    },
+    {
+      "bucket": "85\u2013100",
+      "n": 0,
+      "win_rate": null,
+      "expectancy_r": null,
+      "verdict": "insufficient n"
+    }
+  ],
+  "conf_buckets": [
+    {
+      "bucket": "LOW",
+      "n": 0,
+      "win_rate": null,
+      "expectancy_r": null,
+      "verdict": "insufficient n"
+    },
+    {
+      "bucket": "MEDIUM",
+      "n": 0,
+      "win_rate": null,
+      "expectancy_r": null,
+      "verdict": "insufficient n"
+    },
+    {
+      "bucket": "HIGH",
+      "n": 0,
+      "win_rate": null,
+      "expectancy_r": null,
+      "verdict": "insufficient n"
+    }
+  ],
+  "monthly_signals": {},
+  "gate_attribution": [
+    {
+      "gate": "200-MA distance in range",
+      "n": 1,
+      "expectancy_r": -1.0,
+      "qualified_expectancy_r": 0.0,
+      "delta_r": -1.0,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Volume contraction",
+      "n": 1,
+      "expectancy_r": -0.3157900654379085,
+      "qualified_expectancy_r": 0.0,
+      "delta_r": -0.3157900654379085,
+      "verdict": "insufficient n"
+    }
+  ],
+  "biases": [
+    "**Survivorship bias** \u2014 universe contains currently-listed names only; delisted/bankrupt names are absent. Results are optimistic relative to the real investable universe at each historical date.",
+    "**Look-ahead bias (fundamentals)** \u2014 quality fields (market cap, profitability, debt/equity, sector) reflect present-day values applied to all historical dates. A name that went from small-cap to mid-cap during the backtest period may have been misclassified in early dates."
+  ],
+  "run_meta": {
+    "strategy": "pullback",
+    "universe_size": 1,
+    "start": "2026-06-01",
+    "end": "2026-06-24",
+    "earnings_gate": "on",
+    "capture_near_misses": 1,
+    "time_stop": 10,
+    "entry": "next_open",
+    "git_hash": "8a17ac4",
+    "total_signals": 3,
+    "qualified_signals": 0
+  }
+}

@@ -75,11 +75,11 @@ def test_migrate_idempotent(tmp_path):
     conn = store_db.get_connection(path)
     ver = store_db.get_schema_version(conn)
     conn.close()
-    assert ver == 5
+    assert ver == 6
 
 
 def test_migrate_schema_version_present(db):
-    assert store_db.get_schema_version(db) == 5
+    assert store_db.get_schema_version(db) == 6
 
 
 # ── E9.1 AC3 — round-trip signal ─────────────────────────────────────────────
@@ -250,14 +250,16 @@ def test_migrate_v1_to_current(tmp_path):
     conn.commit()
     conn.close()
 
-    # migrate() should upgrade to current version (5)
+    # migrate() should upgrade to current version
     store_db.migrate(db_path=path)
     conn2 = store_db.get_connection(path)
-    assert store_db.get_schema_version(conn2) == 5
+    assert store_db.get_schema_version(conn2) == 6
     # Columns added in v2/v3 must exist
     cols = [r[1] for r in conn2.execute("PRAGMA table_info(signals)").fetchall()]
     assert "gate_detail_json" in cols
     assert "ath_zone" in cols
+    # notes column added in v6 must exist
+    assert "notes" in cols
     # bars table added in v5 must exist
     tables = [r[0] for r in conn2.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
     assert "bars" in tables

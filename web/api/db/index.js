@@ -55,9 +55,22 @@ function getWriteDb() {
   if (!fs.existsSync(dbPath)) return null;
   try {
     _writeDb = new Database(dbPath, { fileMustExist: true });
+    _applyMigrations(_writeDb);
     return _writeDb;
   } catch (_) {
     return null;
+  }
+}
+
+/**
+ * Applies any schema migrations the Python migrate() hasn't run yet.
+ * Safe to call repeatedly — each step is guarded by a column/version check.
+ */
+function _applyMigrations(db) {
+  const cols = db.prepare('PRAGMA table_info(signals)').all().map(r => r.name);
+  if (!cols.includes('notes')) {
+    db.prepare('ALTER TABLE signals ADD COLUMN notes TEXT').run();
+    db.prepare('UPDATE schema_version SET version = 6').run();
   }
 }
 
@@ -257,6 +270,31 @@ function getJournalCompare(runId) {
   };
 }
 
+// ── Signal outcome write ─────────────────────────────────────────────────────
+
+function updateSignalOutcome(id, { exit_reason, entry_px, exit_px, r_multiple, holding_days, notes }) {
+  const writeDb = getWriteDb();
+  if (!writeDb) return null;
+  const now = new Date().toISOString();
+  writeDb.prepare(
+    `UPDATE signals
+     SET exit_reason=?, entry_px=?, exit_px=?, r_multiple=?, holding_days=?, outcome_checked_at=?, notes=?
+     WHERE id=? AND source='live'`
+  ).run(
+    exit_reason,
+    entry_px   != null ? Number(entry_px)    : null,
+    exit_px    != null ? Number(exit_px)     : null,
+    r_multiple != null ? Number(r_multiple)  : null,
+    holding_days != null ? Number(holding_days) : null,
+    now,
+    notes != null ? String(notes) : null,
+    id
+  );
+  const row = writeDb.prepare('SELECT * FROM signals WHERE id = ?').get(id);
+  if (!row) return null;
+  return _parseSignalJson(row);
+}
+
 // ── OHLCV bars (E12.7) ───────────────────────────────────────────────────────
 
 function getOhlcv(ticker, limit = 120) {
@@ -301,6 +339,7 @@ module.exports = {
   getSummaryStats,
   getJournalCompare,
   getOhlcv,
+  updateSignalOutcome,
   enqueueJob,
   getJob,
 };

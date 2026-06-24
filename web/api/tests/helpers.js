@@ -32,7 +32,7 @@ function makeTmpDb({ withScanRun = true, withBacktest = false, withSignals = tru
       qualified INTEGER NOT NULL DEFAULT 1, failed_gates TEXT, close REAL,
       gate_detail_json TEXT, ath_zone TEXT,
       outcome_checked_at TEXT, entry_px REAL, exit_px REAL,
-      exit_reason TEXT, r_multiple REAL, holding_days INTEGER, flags TEXT,
+      exit_reason TEXT, r_multiple REAL, holding_days INTEGER, flags TEXT, notes TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       UNIQUE (date, ticker, strategy, source, run_id)
     );
@@ -53,7 +53,7 @@ function makeTmpDb({ withScanRun = true, withBacktest = false, withSignals = tru
       open REAL, high REAL, low REAL, close REAL, volume REAL,
       PRIMARY KEY (ticker, date)
     );
-    INSERT INTO schema_version VALUES (5);
+    INSERT INTO schema_version VALUES (6);
   `);
 
   if (withScanRun) {
