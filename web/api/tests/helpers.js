@@ -13,7 +13,7 @@ const os = require('os');
 const fs = require('fs');
 
 function makeTmpDb({ withScanRun = true, withBacktest = false, withSignals = true,
-                     withResolved = false } = {}) {
+                     withResolved = false, withBars = false } = {}) {
   const tmpFile = path.join(os.tmpdir(), `ta_test_${Date.now()}_${Math.random().toString(36).slice(2)}.db`);
   const conn = new Database(tmpFile);
 
@@ -48,7 +48,12 @@ function makeTmpDb({ withScanRun = true, withBacktest = false, withSignals = tru
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       finished_at TEXT
     );
-    INSERT INTO schema_version VALUES (4);
+    CREATE TABLE bars (
+      ticker TEXT NOT NULL, date TEXT NOT NULL,
+      open REAL, high REAL, low REAL, close REAL, volume REAL,
+      PRIMARY KEY (ticker, date)
+    );
+    INSERT INTO schema_version VALUES (5);
   `);
 
   if (withScanRun) {
@@ -125,6 +130,17 @@ function makeTmpDb({ withScanRun = true, withBacktest = false, withSignals = tru
          exit_reason=?, r_multiple=?, holding_days=?, flags=?
          WHERE ticker='AAPL' AND source='live'`
       ).run('2026-07-02T12:00:00', 181.0, 200.0, 'target', 0.76, 8, '{}');
+    }
+  }
+
+  if (withBars) {
+    const insertBar = conn.prepare(
+      'INSERT INTO bars (ticker, date, open, high, low, close, volume) VALUES (?,?,?,?,?,?,?)'
+    );
+    // 5 sample bars for AAPL
+    for (let i = 0; i < 5; i++) {
+      const day = String(i + 1).padStart(2, '0');
+      insertBar.run('AAPL', `2026-06-${day}`, 175 + i, 177 + i, 174 + i, 176 + i, 1e6 * (i + 1));
     }
   }
 

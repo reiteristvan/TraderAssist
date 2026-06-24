@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 _DEFAULT_DB = Path("data/scanner.db")
-_SCHEMA_VERSION = 4
+_SCHEMA_VERSION = 5
 
 # ── DDL ───────────────────────────────────────────────────────────────────────
 
@@ -76,6 +76,17 @@ CREATE TABLE IF NOT EXISTS jobs (
     created_at  TEXT NOT NULL DEFAULT (datetime('now')),
     finished_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS bars (
+    ticker TEXT NOT NULL,
+    date   TEXT NOT NULL,
+    open   REAL,
+    high   REAL,
+    low    REAL,
+    close  REAL,
+    volume REAL,
+    PRIMARY KEY (ticker, date)
+);
 """
 
 # ── Connection ────────────────────────────────────────────────────────────────
@@ -113,6 +124,10 @@ def migrate(db_path: Optional[Path] = None, conn: Optional[sqlite3.Connection] =
             if current < 4:
                 # jobs table already created by executescript(_DDL) above
                 conn.execute("UPDATE schema_version SET version = 4")
+                current = 4
+            if current < 5:
+                # bars table already created by executescript(_DDL) above
+                conn.execute("UPDATE schema_version SET version = 5")
         conn.commit()
     finally:
         if own:
@@ -320,3 +335,27 @@ def reset_stale_jobs(conn: sqlite3.Connection, timeout_seconds: int = 300) -> in
     )
     conn.commit()
     return cur.rowcount
+
+
+# ── bars (E12.7 — OHLCV snapshot for chart) ──────────────────────────────────
+
+def upsert_bars(conn: sqlite3.Connection, ticker: str, rows: list[dict]) -> None:
+    """Insert or replace OHLCV bars for a ticker (recent window, for the chart)."""
+    upper = ticker.upper()
+    normalized = [{**r, "ticker": upper} for r in rows]
+    conn.executemany(
+        """INSERT OR REPLACE INTO bars (ticker, date, open, high, low, close, volume)
+           VALUES (:ticker, :date, :open, :high, :low, :close, :volume)""",
+        normalized,
+    )
+    conn.commit()
+
+
+def get_ohlcv(conn: sqlite3.Connection, ticker: str, limit: int = 120) -> list[dict]:
+    """Return the most recent `limit` OHLCV bars for `ticker`, chronological order."""
+    rows = conn.execute(
+        """SELECT date, open, high, low, close, volume FROM bars
+           WHERE ticker = ? ORDER BY date DESC LIMIT ?""",
+        (ticker.upper(), limit),
+    ).fetchall()
+    return [dict(r) for r in reversed(rows)]

@@ -148,7 +148,7 @@ def cmd_scan(args) -> None:
     # ── E9.2 — write to scanner.db unless --no-journal ────────────────────────
     if not getattr(args, "no_journal", False):
         try:
-            from scanner.journal import write_live_signals
+            from scanner.journal import write_live_signals, write_ohlcv_snapshot
             from scanner.core import last_closed_session
             run_date = str(as_of) if as_of else str(last_closed_session())
             universe_label = getattr(args, "file", None) or getattr(args, "ticker", None) or ""
@@ -160,6 +160,10 @@ def cmd_scan(args) -> None:
                     print(f"  [{strat}] {n} signal(s) written to scanner.db (run_id={run_date})")
                 else:
                     print(f"  [{strat}] 0 qualified signals — run row recorded (run_id={run_date})")
+            # E12.7 — export OHLCV bars for the Diagnosis chart
+            unique_tickers = list({r["ticker"] for r in qualified_rows})
+            if unique_tickers:
+                write_ohlcv_snapshot(unique_tickers)
         except Exception as exc:
             print(f"  [journal] DB write skipped: {exc}")
 
@@ -409,6 +413,12 @@ def _process_diagnose_job(conn, job: dict) -> str:
         sig,
     )
     conn.commit()
+    # E12.7 — export OHLCV bars for the Diagnosis chart
+    try:
+        from scanner.journal import write_ohlcv_snapshot
+        write_ohlcv_snapshot([ticker])
+    except Exception:
+        pass
     return str(cur.lastrowid)
 
 

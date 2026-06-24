@@ -11,6 +11,7 @@ const runsRouter    = require('./routes/runs');
 const journalRouter = require('./routes/journal');
 const statsRouter   = require('./routes/stats');
 const jobsRouter    = require('./routes/jobs');
+const ohlcvRouter   = require('./routes/ohlcv');
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.use('/api', runsRouter);
 app.use('/api', journalRouter);
 app.use('/api', statsRouter);
 app.use('/api/jobs', jobsRouter);
+app.use('/api', ohlcvRouter);
 
 // 404 fallback
 app.use((req, res) => {

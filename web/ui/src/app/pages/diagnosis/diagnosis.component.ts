@@ -1,18 +1,46 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, AfterViewChecked, ViewChild, ElementRef } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
-import { ApiService, Signal, GateEntry } from '../../services/api.service';
+import { ApiService, Signal, GateEntry, OhlcvBar } from '../../services/api.service';
+import { createChart, LineStyle } from 'lightweight-charts';
 
 export interface GateSection {
   title: string;
   entries: GateEntry[];
 }
 
+// ── helpers: moving-average computation ──────────────────────────────────────
+
+function sma(values: number[], period: number): (number | null)[] {
+  return values.map((_, i) => {
+    if (i < period - 1) return null;
+    return values.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0) / period;
+  });
+}
+
+function ema(values: number[], period: number): (number | null)[] {
+  const k = 2 / (period + 1);
+  const result: (number | null)[] = new Array(values.length).fill(null);
+  let prev: number | null = null;
+  for (let i = 0; i < values.length; i++) {
+    if (i === period - 1) {
+      result[i] = values.slice(0, period).reduce((a, b) => a + b, 0) / period;
+      prev = result[i];
+    } else if (i > period - 1) {
+      result[i] = values[i] * k + prev! * (1 - k);
+      prev = result[i];
+    }
+  }
+  return result;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 @Component({
   selector: 'app-diagnosis',
   templateUrl: './diagnosis.component.html',
   styleUrls: ['./diagnosis.component.css']
 })
-export class DiagnosisComponent implements OnInit, OnDestroy {
+export class DiagnosisComponent implements OnInit, OnDestroy, AfterViewChecked {
   signal: Signal | null = null;
   sections: GateSection[] = [];
   loading = true;
@@ -28,6 +56,12 @@ export class DiagnosisComponent implements OnInit, OnDestroy {
   accountSize = 6500;
   riskPct = 1;
 
+  // Chart (E12.7)
+  ohlcv: OhlcvBar[] = [];
+  @ViewChild('chartContainer') chartContainer?: ElementRef;
+  private _lc: ReturnType<typeof createChart> | null = null;
+  private _chartNeeded = false;
+
   private _pollTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private route: ActivatedRoute, private api: ApiService) {}
@@ -41,16 +75,36 @@ export class DiagnosisComponent implements OnInit, OnDestroy {
     }
     const id = Number(idParam);
     if (isNaN(id)) { this.notFound = true; this.loading = false; return; }
+    this._loadSignal(id);
+  }
+
+  ngAfterViewChecked(): void {
+    if (this._chartNeeded && this.chartContainer?.nativeElement) {
+      this._chartNeeded = false;
+      this._renderChart();
+    }
+  }
+
+  ngOnDestroy(): void {
+    if (this._pollTimer) clearTimeout(this._pollTimer);
+    if (this._lc) { this._lc.remove(); this._lc = null; }
+  }
+
+  private _loadSignal(id: number): void {
     this.api.getSignal(id).subscribe(s => {
       this.signal = s;
       this.notFound = s === null;
       if (s?.gate_detail) this.sections = this._buildSections(s.gate_detail);
       this.loading = false;
+      if (s?.ticker) {
+        this.api.getOhlcv(s.ticker).subscribe(res => {
+          if (res && res.bars.length) {
+            this.ohlcv = res.bars;
+            this._chartNeeded = true;
+          }
+        });
+      }
     });
-  }
-
-  ngOnDestroy(): void {
-    if (this._pollTimer) clearTimeout(this._pollTimer);
   }
 
   startDiagnose(): void {
@@ -60,6 +114,8 @@ export class DiagnosisComponent implements OnInit, OnDestroy {
     this.jobError = null;
     this.signal = null;
     this.sections = [];
+    this.ohlcv = [];
+    if (this._lc) { this._lc.remove(); this._lc = null; }
 
     this.api.postJob('diagnose', { ticker, strategy: this.onDemandStrategy }).subscribe(res => {
       if (!res) {
@@ -81,11 +137,7 @@ export class DiagnosisComponent implements OnInit, OnDestroy {
       this.jobStatus = job.status as typeof this.jobStatus;
 
       if (job.status === 'done' && job.result_ref) {
-        this.api.getSignal(Number(job.result_ref)).subscribe(s => {
-          this.signal = s;
-          this.notFound = s === null;
-          if (s?.gate_detail) this.sections = this._buildSections(s.gate_detail);
-        });
+        this._loadSignal(Number(job.result_ref));
       } else if (job.status === 'error') {
         this.jobError = job.result_ref || 'Worker reported an error.';
       } else {
@@ -108,6 +160,92 @@ export class DiagnosisComponent implements OnInit, OnDestroy {
     if (current.title || current.entries.length) sections.push(current);
     return sections;
   }
+
+  private _renderChart(): void {
+    if (this._lc) { this._lc.remove(); this._lc = null; }
+    const el = this.chartContainer!.nativeElement as HTMLElement;
+    if (!el || !this.ohlcv.length) return;
+
+    try {
+      const chart = createChart(el, {
+        width: el.offsetWidth || 800,
+        height: 280,
+        layout: {
+          background: { color: '#0d0d1a' },
+          textColor: '#808090',
+        },
+        grid: {
+          vertLines: { color: '#1a1a2e' },
+          horzLines: { color: '#1a1a2e' },
+        },
+        timeScale: { borderColor: '#2a2a4a' },
+        rightPriceScale: { borderColor: '#2a2a4a' },
+        crosshair: { mode: 0 },
+      });
+      this._lc = chart;
+
+      // Candlestick series
+      const candles = chart.addCandlestickSeries({
+        upColor: '#4caf89',
+        downColor: '#c46060',
+        borderVisible: false,
+        wickUpColor: '#4caf89',
+        wickDownColor: '#c46060',
+      });
+      candles.setData(this.ohlcv.map(b => ({
+        time: b.date as `${number}-${number}-${number}`,
+        open: b.open, high: b.high, low: b.low, close: b.close,
+      })));
+
+      // Stop / target price lines
+      const sig = this.signal;
+      if (sig?.stop) {
+        candles.createPriceLine({
+          price: sig.stop,
+          color: '#c46060',
+          lineWidth: 1,
+          lineStyle: LineStyle.Dashed,
+          axisLabelVisible: true,
+          title: 'Stop',
+        });
+      }
+      if (sig?.target) {
+        candles.createPriceLine({
+          price: sig.target,
+          color: '#4caf89',
+          lineWidth: 1,
+          lineStyle: LineStyle.Dashed,
+          axisLabelVisible: true,
+          title: 'Target',
+        });
+      }
+
+      // Moving averages computed client-side
+      const closes = this.ohlcv.map(b => b.close);
+      const dates = this.ohlcv.map(b => b.date as `${number}-${number}-${number}`);
+
+      const addLine = (vals: (number | null)[], color: string, title: string, width = 1) => {
+        const series = chart.addLineSeries({
+          color, lineWidth: width as 1 | 2 | 3 | 4,
+          title, lastValueVisible: false, priceLineVisible: false,
+        });
+        series.setData(
+          vals.map((v, i) => v !== null ? { time: dates[i], value: v } : null)
+              .filter((x): x is { time: `${number}-${number}-${number}`; value: number } => x !== null)
+        );
+      };
+
+      addLine(sma(closes, 20), '#808090', 'SMA20');
+      addLine(sma(closes, 50), '#3a6abf', 'SMA50');
+      addLine(ema(closes, 20), '#bf8a3a', 'EMA20');
+
+      chart.timeScale().fitContent();
+    } catch (_) {
+      // Chart lib unavailable in test environments — graceful no-op
+    }
+  }
+
+  // ── positioning ───────────────────────────────────────────────────────────
 
   get shares(): number {
     const s = this.signal;

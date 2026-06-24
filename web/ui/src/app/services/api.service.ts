@@ -112,6 +112,15 @@ export interface JournalCompare {
   warning: string | null;
 }
 
+export interface OhlcvBar {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
 export interface Job {
   id: number;
   kind: string;
@@ -194,5 +203,13 @@ export class ApiService {
     return this.http.get<Job>(`${this.base}/jobs/${id}`).pipe(
       catchError(() => of(null))
     );
+  }
+
+  getOhlcv(ticker: string, bars = 120):
+      Observable<{ ticker: string; count: number; bars: OhlcvBar[] } | null> {
+    const params = new HttpParams().set('bars', String(bars));
+    return this.http.get<{ ticker: string; count: number; bars: OhlcvBar[] }>(
+      `${this.base}/ohlcv/${encodeURIComponent(ticker)}`, { params }
+    ).pipe(catchError(() => of(null)));
   }
 }

@@ -257,6 +257,17 @@ function getJournalCompare(runId) {
   };
 }
 
+// ── OHLCV bars (E12.7) ───────────────────────────────────────────────────────
+
+function getOhlcv(ticker, limit = 120) {
+  const db = getDb();
+  if (!db) return null;
+  const rows = db.prepare(
+    'SELECT date, open, high, low, close, volume FROM bars WHERE ticker = ? ORDER BY date DESC LIMIT ?'
+  ).all(ticker.toUpperCase(), Math.min(limit, 500));
+  return rows.reverse();
+}
+
 // ── Jobs (write path — uses getWriteDb) ─────────────────────────────────────
 
 function enqueueJob(kind, params) {
@@ -289,6 +300,7 @@ module.exports = {
   getResolvedLiveSignals,
   getSummaryStats,
   getJournalCompare,
+  getOhlcv,
   enqueueJob,
   getJob,
 };

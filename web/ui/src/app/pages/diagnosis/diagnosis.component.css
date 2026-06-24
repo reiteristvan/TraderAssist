@@ -142,6 +142,37 @@
 .g-skip .gate-icon { color: #5060a0; }
 .g-fail .gate-name { color: #e0a0a0; }
 
+/* Chart (E12.7) */
+.chart-card { margin-top: 16px; padding: 14px 16px 0; }
+.chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chart-header h2 { margin: 0; }
+.chart-legend {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.leg-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #808090;
+}
+.leg-dot {
+  width: 10px;
+  height: 2px;
+  display: inline-block;
+  border-radius: 1px;
+}
+.chart-container { width: 100%; height: 280px; }
+
 /* Score chip */
 .score-chip {
   font-size: 12px;

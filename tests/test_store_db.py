@@ -75,11 +75,11 @@ def test_migrate_idempotent(tmp_path):
     conn = store_db.get_connection(path)
     ver = store_db.get_schema_version(conn)
     conn.close()
-    assert ver == 4
+    assert ver == 5
 
 
 def test_migrate_schema_version_present(db):
-    assert store_db.get_schema_version(db) == 4
+    assert store_db.get_schema_version(db) == 5
 
 
 # ── E9.1 AC3 — round-trip signal ─────────────────────────────────────────────
@@ -228,8 +228,8 @@ def test_gate_detail_defaults_null(db):
     assert row["gate_detail_json"] is None
 
 
-def test_migrate_v1_to_v2(tmp_path):
-    """Existing v1 DB gets gate_detail_json column added by migrate()."""
+def test_migrate_v1_to_current(tmp_path):
+    """Existing v1 DB upgrades through all versions to the current schema."""
     import sqlite3 as _sqlite3
     path = tmp_path / "v1.db"
     # Build a v1 DB manually (no gate_detail_json column)
@@ -250,15 +250,78 @@ def test_migrate_v1_to_v2(tmp_path):
     conn.commit()
     conn.close()
 
-    # migrate() should upgrade to v4
+    # migrate() should upgrade to current version (5)
     store_db.migrate(db_path=path)
     conn2 = store_db.get_connection(path)
-    assert store_db.get_schema_version(conn2) == 4
-    # Both columns must now exist
+    assert store_db.get_schema_version(conn2) == 5
+    # Columns added in v2/v3 must exist
     cols = [r[1] for r in conn2.execute("PRAGMA table_info(signals)").fetchall()]
     assert "gate_detail_json" in cols
     assert "ath_zone" in cols
+    # bars table added in v5 must exist
+    tables = [r[0] for r in conn2.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+    assert "bars" in tables
     conn2.close()
+
+
+# ── E12.7 — bars round-trip ───────────────────────────────────────────────────
+
+def _sample_bars(ticker: str = "AAPL", n: int = 5) -> list[dict]:
+    return [
+        {
+            "ticker": ticker,
+            "date": f"2026-01-{i + 1:02d}",
+            "open": 100.0 + i,
+            "high": 102.0 + i,
+            "low": 99.0 + i,
+            "close": 101.0 + i,
+            "volume": 1_000_000.0 * (i + 1),
+        }
+        for i in range(n)
+    ]
+
+
+def test_upsert_bars_round_trip(db):
+    bars = _sample_bars("AAPL", 5)
+    store_db.upsert_bars(db, "AAPL", bars)
+    result = store_db.get_ohlcv(db, "AAPL", limit=10)
+    assert len(result) == 5
+    assert result[0]["date"] == "2026-01-01"
+    assert result[-1]["date"] == "2026-01-05"
+    assert result[0]["open"] == pytest.approx(100.0)
+    assert result[0]["volume"] == pytest.approx(1_000_000.0)
+
+
+def test_upsert_bars_replace(db):
+    """INSERT OR REPLACE: re-inserting same (ticker, date) updates the row."""
+    bars = _sample_bars("AAPL", 1)
+    store_db.upsert_bars(db, "AAPL", bars)
+    bars[0]["close"] = 999.0
+    store_db.upsert_bars(db, "AAPL", bars)
+    result = store_db.get_ohlcv(db, "AAPL")
+    assert len(result) == 1
+    assert result[0]["close"] == pytest.approx(999.0)
+
+
+def test_get_ohlcv_limit(db):
+    bars = _sample_bars("AAPL", 10)
+    store_db.upsert_bars(db, "AAPL", bars)
+    result = store_db.get_ohlcv(db, "AAPL", limit=3)
+    assert len(result) == 3
+    # limit=3 returns the 3 most recent bars, in chronological order
+    assert result[-1]["date"] == "2026-01-10"
+
+
+def test_get_ohlcv_empty(db):
+    result = store_db.get_ohlcv(db, "UNKNOWN")
+    assert result == []
+
+
+def test_upsert_bars_case_insensitive(db):
+    bars = _sample_bars("aapl", 2)  # lowercase ticker
+    store_db.upsert_bars(db, "aapl", bars)
+    result = store_db.get_ohlcv(db, "AAPL")  # uppercase lookup
+    assert len(result) == 2
 
 
 # ── batch insert ──────────────────────────────────────────────────────────────

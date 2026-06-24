@@ -71,6 +71,45 @@ def write_live_signals(
     return n
 
 
+# ── E12.7 — OHLCV bars snapshot ──────────────────────────────────────────────
+
+def write_ohlcv_snapshot(
+    tickers: list[str],
+    n_bars: int = 120,
+    db_path: Optional[Path] = None,
+) -> None:
+    """Export the last n_bars of OHLCV for each ticker to the bars table.
+
+    Reads from the local Parquet cache (no network). Bars are used by the
+    Angular chart in the Diagnosis view. INSERT OR REPLACE so refreshed
+    prices overwrite stale values.
+    """
+    from scanner.data_store import get_history
+
+    conn = store_db.get_connection(db_path)
+    store_db.migrate(conn=conn)
+    for ticker in tickers:
+        df = get_history(ticker)
+        if df is None or df.empty:
+            continue
+        tail = df.tail(n_bars)
+        rows = [
+            {
+                "ticker": ticker.upper(),
+                "date": str(ts.date()),
+                "open": float(row["Open"]),
+                "high": float(row["High"]),
+                "low": float(row["Low"]),
+                "close": float(row["Close"]),
+                "volume": float(row["Volume"]),
+            }
+            for ts, row in tail.iterrows()
+        ]
+        if rows:
+            store_db.upsert_bars(conn, ticker, rows)
+    conn.close()
+
+
 # ── E9.3 — resolve open signals ───────────────────────────────────────────────
 
 def resolve_open_signals(

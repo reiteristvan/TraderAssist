@@ -156,9 +156,24 @@
 
   </div><!-- /diag-layout -->
 
+  <!-- Chart (E12.7) -->
+  <div class="card chart-card" *ngIf="ohlcv.length">
+    <div class="chart-header">
+      <h2>Chart</h2>
+      <div class="chart-legend">
+        <span class="leg-item"><span class="leg-dot" style="background:#808090"></span>SMA20</span>
+        <span class="leg-item"><span class="leg-dot" style="background:#3a6abf"></span>SMA50</span>
+        <span class="leg-item"><span class="leg-dot" style="background:#bf8a3a"></span>EMA20</span>
+        <span class="leg-item"><span class="leg-dot" style="background:#c46060"></span>Stop</span>
+        <span class="leg-item"><span class="leg-dot" style="background:#4caf89"></span>Target</span>
+      </div>
+    </div>
+    <div #chartContainer class="chart-container"></div>
+  </div>
+
   <div style="margin-top:12px; font-size:12px; color:#606080;">
     <a routerLink="/candidates">← Back to candidates</a>
-    <ng-container *ngIf="onDemand"> · <a (click)="onDemandTicker=''; jobStatus='idle'; signal=null" style="cursor:pointer;">Diagnose another</a></ng-container>
+    <ng-container *ngIf="onDemand"> · <a (click)="onDemandTicker=''; jobStatus='idle'; signal=null; ohlcv=[]" style="cursor:pointer;">Diagnose another</a></ng-container>
   </div>
 
 </ng-container>
