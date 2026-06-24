@@ -54,9 +54,12 @@
 
 .diag-layout {
   display: grid;
-  grid-template-columns: 340px 1fr;
+  grid-template-columns: 300px 1fr;
   gap: 16px;
   align-items: start;
+}
+.diag-layout.has-chart {
+  grid-template-columns: 300px 280px 1fr;
 }
 
 /* Price levels */
@@ -123,8 +126,8 @@
 }
 .gate-row {
   display: grid;
-  grid-template-columns: 24px 200px 1fr;
-  align-items: baseline;
+  grid-template-columns: 20px 150px 1fr;
+  align-items: center;
   padding: 5px 4px;
   border-radius: 4px;
   font-size: 13px;
@@ -135,7 +138,13 @@
 .gate-icon { font-size: 11px; font-weight: 700; text-align: center; }
 .gate-name  { color: #c0c0e0; }
 .gate-name.bonus { color: #7890c0; font-style: italic; }
-.gate-detail-text { color: #606080; font-size: 12px; }
+.gate-detail-text {
+  color: #606080;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .g-pass .gate-icon { color: #4caf89; }
 .g-fail .gate-icon { color: #c46060; }
@@ -143,7 +152,7 @@
 .g-fail .gate-name { color: #e0a0a0; }
 
 /* Chart (E12.7) */
-.chart-card { margin-top: 16px; padding: 14px 16px 0; }
+.chart-card { margin-top: 0; margin-bottom: 0; padding: 14px 16px 0; }
 .chart-header {
   display: flex;
   align-items: center;
