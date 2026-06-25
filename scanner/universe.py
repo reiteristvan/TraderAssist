@@ -111,9 +111,10 @@ def audit_universe(file_path: Path) -> dict:
 
 def load_universe_file(path: Path) -> list[str]:
     """Read a universe text file (# comment lines ignored)."""
+    from scanner.data_store import _is_reserved
     lines = Path(path).read_text(encoding="utf-8").splitlines()
     return [
         l.strip().upper()
         for l in lines
-        if l.strip() and not l.startswith("#")
+        if l.strip() and not l.startswith("#") and not _is_reserved(l.strip().upper())
     ]

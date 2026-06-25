@@ -78,16 +78,20 @@ def _normalise(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _write_cache(ticker: str, df: pd.DataFrame) -> None:
+    if _is_reserved(ticker):
+        return
     path = _cache_path(ticker)
     path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(path)
 
 
 def _read_cache(ticker: str) -> pd.DataFrame | None:
-    path = _cache_path(ticker)
-    if not path.exists():
+    if _is_reserved(ticker):
         return None
+    path = _cache_path(ticker)
     try:
+        if not path.exists():
+            return None
         return pd.read_parquet(path)
     except Exception:
         return None
@@ -103,6 +107,8 @@ def _fetch_raw(ticker: str, **kwargs) -> pd.DataFrame:
 
 def _do_full_fetch(ticker: str) -> pd.DataFrame:
     """Full history fetch (period=max), normalise, write to cache, return."""
+    if _is_reserved(ticker):
+        raise ValueError(f"Cannot fetch reserved Windows device name: {ticker!r}")
     raw = fetch_with_retry(_fetch_raw, ticker, period="max")
     df = _normalise(raw)
     _write_cache(ticker, df)

@@ -28,12 +28,19 @@ if hasattr(sys.stderr, "reconfigure"):
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 def _load_tickers_file(path: str) -> list[str]:
+    from scanner.data_store import _is_reserved
     lines = Path(path).read_text().splitlines()
-    return [l.strip().upper() for l in lines if l.strip() and not l.startswith("#")]
+    tickers = [l.strip().upper() for l in lines if l.strip() and not l.startswith("#")]
+    skipped = [t for t in tickers if _is_reserved(t)]
+    if skipped:
+        print(f"[warn] Skipping Windows reserved name(s) from universe: {', '.join(skipped)}")
+    return [t for t in tickers if not _is_reserved(t)]
 
 
 def _load_tickers_arg(arg: str) -> list[str]:
-    return [t.strip().upper() for t in arg.split(",") if t.strip()]
+    from scanner.data_store import _is_reserved
+    return [t.strip().upper() for t in arg.split(",")
+            if t.strip() and not _is_reserved(t.strip().upper())]
 
 
 def _resolve_tickers(args) -> list[str]:
