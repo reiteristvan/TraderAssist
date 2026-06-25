@@ -48,6 +48,19 @@ def fetch_with_retry(fn, *args, retries: int = 3, base_delay: float = 1.0, **kwa
 
 # ── cache path helpers ────────────────────────────────────────────────────────
 
+# Windows reserved device names — creating files with these stems is forbidden
+# on Windows regardless of extension (e.g. CON.parquet hits the console).
+_WIN_RESERVED = frozenset({
+    "CON", "PRN", "AUX", "NUL",
+    "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+    "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+})
+
+
+def _is_reserved(ticker: str) -> bool:
+    return ticker.upper() in _WIN_RESERVED
+
+
 def _cache_path(ticker: str) -> Path:
     return _CACHE_DIR / f"{ticker.upper()}.parquet"
 
@@ -111,6 +124,9 @@ def refresh_ticker(ticker: str) -> str:
     Returns "ok" or "invalidated" on success; "ok" also when the tail fetch
     fails (existing cache preserved).
     """
+    if _is_reserved(ticker):
+        _log.warning("refresh_ticker: skipping reserved name %s", ticker)
+        return "ok"
     cached = _read_cache(ticker)
     if cached is None:
         _do_full_fetch(ticker)
@@ -160,6 +176,9 @@ def refresh_universe(tickers: Iterable[str], pause: float = 0.2) -> RefreshRepor
         if fail:
             status += f"  {fail} failed"
         print(f"  [{i + 1}/{n}] {ticker:<8}  ({status})", end="\r", flush=True)
+        if _is_reserved(ticker):
+            report.failed.append((ticker, "Windows reserved device name — skipped"))
+            continue
         try:
             result = refresh_ticker(ticker)
             if result == "invalidated":
@@ -179,6 +198,8 @@ def get_history(
     refresh: bool = False,
 ) -> pd.DataFrame | None:
     """Return cached daily OHLCV, optionally sliced to end date."""
+    if _is_reserved(ticker):
+        return None
     if refresh:
         try:
             refresh_ticker(ticker)
