@@ -18,8 +18,6 @@ _WIKIPEDIA_URLS = {
     "sp600": "https://en.wikipedia.org/wiki/List_of_S%26P_600_companies",
 }
 
-_TICKER_COLS = ("Symbol", "Ticker", "Ticker symbol")  # column names to try
-
 
 def _normalize(ticker: str) -> str:
     """Normalize ticker: strip whitespace, uppercase, replace dots with dashes."""

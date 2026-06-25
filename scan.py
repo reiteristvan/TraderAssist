@@ -56,8 +56,6 @@ def _resolve_tickers(args) -> list[str]:
 def _strategy_fn_for(strategy: str, allow_earnings: bool = False):
     """Return the evaluate() callable for the given strategy name."""
     from scanner.strategies import pullback as pb, breakout as br
-    from scanner.core import EARNINGS_BUFFER_DAYS
-    import scanner.core as _core
 
     if strategy == "pullback":
         return pb.evaluate
@@ -198,10 +196,9 @@ def _print_scan_results(df) -> None:
 # ── subcommand: refresh ───────────────────────────────────────────────────────
 
 def cmd_refresh(args) -> None:
-    from scanner.data_store import refresh_universe, refresh_ticker
+    from scanner.data_store import refresh_universe
     tickers = _resolve_tickers(args)
     if getattr(args, "full", False):
-        from scanner.data_store import _do_full_fetch, _CACHE_DIR
         import scanner.data_store as ds
         print(f"Full re-fetch for {len(tickers)} tickers (may take several minutes)...")
         for t in tickers:

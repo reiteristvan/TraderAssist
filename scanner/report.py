@@ -214,16 +214,6 @@ def _monthly_signal_counts(signals: list[Signal]) -> dict[str, int]:
     return dict(sorted(counts.items()))
 
 
-# ── E8.1 — Skip-rate from signals ────────────────────────────────────────────
-
-def _earnings_skip_rate(signals: list[Signal]) -> float:
-    """Fraction of signals where earnings gate was skipped (days_to_earnings=None)."""
-    # We can't directly inspect the context here, so we proxy via failed/skipped gates.
-    # The skip rate is computed from near-miss signals where earnings gate appears in failed_gates.
-    # For the bias block we just note it's a computed value.
-    return 0.0  # populated properly in render_report when gate_detail is available
-
-
 # ── E6.2 / E8.1 — Render report ──────────────────────────────────────────────
 
 def render_report(
