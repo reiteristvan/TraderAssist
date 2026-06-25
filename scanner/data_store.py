@@ -148,8 +148,18 @@ def refresh_ticker(ticker: str) -> str:
 def refresh_universe(tickers: Iterable[str], pause: float = 0.2) -> RefreshReport:
     """Refresh cached history for each ticker in `tickers`."""
     tickers = list(tickers)
+    n = len(tickers)
     report = RefreshReport()
     for i, ticker in enumerate(tickers):
+        ok = len(report.succeeded)
+        inv = len(report.invalidated)
+        fail = len(report.failed)
+        status = f"{ok} ok"
+        if inv:
+            status += f"  {inv} re-fetched"
+        if fail:
+            status += f"  {fail} failed"
+        print(f"  [{i + 1}/{n}] {ticker:<8}  ({status})", end="\r", flush=True)
         try:
             result = refresh_ticker(ticker)
             if result == "invalidated":
@@ -158,7 +168,7 @@ def refresh_universe(tickers: Iterable[str], pause: float = 0.2) -> RefreshRepor
                 report.succeeded.append(ticker)
         except Exception as exc:
             report.failed.append((ticker, str(exc)))
-        if i < len(tickers) - 1:
+        if i < n - 1:
             time.sleep(pause)
     return report
 

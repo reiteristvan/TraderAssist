@@ -497,23 +497,41 @@ def run_scan(
         history_provider = lambda t, end=None: get_history(t, end=end)
 
     tickers_list = list(tickers)
+    n_requested = len(tickers_list)
 
     if as_of is None:
-        refresh_universe(tickers_list, pause=0.2)
+        print(f"  Refreshing {n_requested} ticker(s)...", flush=True)
+        report = refresh_universe(tickers_list, pause=0.2)
+        parts = [f"{len(report.succeeded)} ok"]
+        if report.invalidated:
+            parts.append(f"{len(report.invalidated)} re-fetched")
+        if report.failed:
+            parts.append(f"{len(report.failed)} failed")
+        print(f"\r  Refresh complete: {', '.join(parts)}" + " " * 30)
+    else:
+        print(f"  Using cached data (as of {as_of})", flush=True)
 
+    print(f"  Building evaluation contexts...", flush=True)
     contexts = make_contexts(tickers_list, as_of=as_of)
     n = len(contexts)
+    skipped = n_requested - n
+    suffix = f" ({skipped} skipped — insufficient history)" if skipped else ""
+    print(f"  {n} contexts ready{suffix}")
+
     rows = []
+    qualified_count = 0
 
     for i, (ticker, ctx) in enumerate(contexts.items(), 1):
         if n > 1 and not verbose:
-            print(f"[{i}/{n}] {ticker}", end="\r")
+            print(f"  [{i}/{n}] {ticker:<8}  {qualified_count} qualified so far", end="\r", flush=True)
         df = history_provider(ticker, end=as_of)
         if df is None:
             continue
         result = strategy_fn(ticker, df, ctx, verbose=verbose)
         if result is None:
             continue
+        if getattr(result, "qualified", False):
+            qualified_count += 1
 
         if attach_risk:
             try:
@@ -557,6 +575,9 @@ def run_scan(
         row = asdict(result)
         row["ath_zone"] = zone_label
         rows.append(row)
+
+    if n > 1 and not verbose:
+        print(f"  [{n}/{n}] Done.  {qualified_count} qualified out of {n} evaluated." + " " * 20)
 
     if not rows:
         return pd.DataFrame()

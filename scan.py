@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 from datetime import date
 from pathlib import Path
 
@@ -73,6 +74,8 @@ def cmd_scan(args) -> None:
     import scanner.strategies.pullback as pb
     import scanner.strategies.breakout as br
 
+    t0 = time.time()
+
     as_of: date | None = None
     if hasattr(args, "date") and args.date:
         as_of = date.fromisoformat(args.date)
@@ -82,10 +85,16 @@ def cmd_scan(args) -> None:
         ["pullback", "breakout"] if args.strategy == "both" else [args.strategy]
     )
 
+    label = f"{len(tickers)} ticker(s)"
+    if as_of:
+        label += f" as of {as_of}"
+    print(f"Scan started — {label}, strateg{'ies' if len(strategies) > 1 else 'y'}: {', '.join(strategies)}")
+
     allow_earnings = getattr(args, "allow_earnings", False)
 
     frames = []
     for strat in strategies:
+        print(f"\n── {strat.upper()} ─────────────────────────────────────")
         fn = _strategy_fn_for(strat, allow_earnings=allow_earnings)
 
         if allow_earnings:
@@ -166,6 +175,10 @@ def cmd_scan(args) -> None:
                 write_ohlcv_snapshot(unique_tickers)
         except Exception as exc:
             print(f"  [journal] DB write skipped: {exc}")
+
+    elapsed = time.time() - t0
+    m, s = divmod(elapsed, 60)
+    print(f"\nDone in {int(m)}m {s:.0f}s" if m >= 1 else f"\nDone in {elapsed:.1f}s")
 
 
 def _print_scan_results(df) -> None:
