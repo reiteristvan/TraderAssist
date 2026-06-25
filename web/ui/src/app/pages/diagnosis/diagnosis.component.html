@@ -146,11 +146,21 @@
 
       <div *ngFor="let sec of sections" class="gate-section">
         <div *ngIf="sec.title" class="section-header">{{ sec.title }}</div>
-        <div *ngFor="let entry of sec.entries" class="gate-row" [class]="gateStatusClass(entry)">
-          <span class="gate-icon">{{ gateIcon(entry) }}</span>
-          <span class="gate-name" [class.bonus]="isBonus(entry)">{{ entry.name }}</span>
-          <span class="gate-detail-text" title="{{ entry.detail }}">{{ entry.detail }}</span>
-        </div>
+        <ng-container *ngFor="let entry of sec.entries">
+          <div class="gate-row" [class]="gateStatusClass(entry)">
+            <span class="gate-icon">{{ gateIcon(entry) }}</span>
+            <span class="gate-name" [class.bonus]="isBonus(entry)">{{ entry.name }}</span>
+            <span class="gate-detail-text" title="{{ entry.detail }}">{{ entry.detail }}</span>
+            <button *ngIf="hintFor(entry.name)"
+                    class="hint-btn"
+                    [class.hint-btn-active]="activeHint === entry.name"
+                    (click)="toggleHint(entry.name, $event)"
+                    title="Why does this matter?">?</button>
+          </div>
+          <div *ngIf="activeHint === entry.name && hintFor(entry.name)" class="gate-hint">
+            {{ hintFor(entry.name) }}
+          </div>
+        </ng-container>
       </div>
     </div><!-- /right -->
 
