@@ -203,6 +203,94 @@ def gate_attribution(
     return result
 
 
+# ── E13.1 — Failure analysis & target-distance bucketing ─────────────────────
+
+def failure_analysis(trades: list[Trade]) -> dict:
+    """Split non-winning qualified trades into stop_out vs time_stop."""
+    active = _active_trades(trades)
+    non_winners = [t for t in active if t.r_multiple <= 0]
+    stop_out  = sum(1 for t in non_winners if t.exit_reason == "stop")
+    time_stop = sum(1 for t in non_winners if t.exit_reason == "time_stop")
+    other = len(non_winners) - stop_out - time_stop
+    total = len(non_winners)
+
+    if total == 0:
+        interpretation = "No non-winning trades to analyze."
+    else:
+        ts_pct = time_stop / total
+        so_pct = stop_out / total
+        if ts_pct > 0.60:
+            interpretation = (
+                f"Time-stop dominated ({ts_pct:.0%}) — targets may be too far "
+                "for the session horizon; consider tightening target distance."
+            )
+        elif so_pct > 0.60:
+            interpretation = (
+                f"Stop-out dominated ({so_pct:.0%}) — setups are breaking down; "
+                "the issue is setup quality rather than target distance."
+            )
+        else:
+            interpretation = (
+                "Mixed breakdown — price reversal and time horizon contribute "
+                "roughly equally to non-winning outcomes."
+            )
+
+    return {
+        "total_non_winners": total,
+        "stop_out":  stop_out,
+        "time_stop": time_stop,
+        "other":     other,
+        "interpretation": interpretation,
+    }
+
+
+_TARGET_R_BUCKETS = [
+    (1.0, 1.5, "1.0–1.5×R"),
+    (1.5, 2.0, "1.5–2.0×R"),
+    (2.0, 2.5, "2.0–2.5×R"),
+    (2.5, 3.0, "2.5–3.0×R"),
+    (3.0, float("inf"), "3.0+×R"),
+]
+
+_TARGET_ATR_BUCKETS = [
+    (0.0, 1.0, "<1.0 ATR"),
+    (1.0, 1.5, "1.0–1.5 ATR"),
+    (1.5, 2.0, "1.5–2.0 ATR"),
+    (2.0, 2.5, "2.0–2.5 ATR"),
+    (2.5, float("inf"), "2.5+ ATR"),
+]
+
+
+def _target_bucket_stats(trades: list[Trade]) -> dict:
+    n = len(trades)
+    if n == 0:
+        return {"n": 0, "hit_rate": None, "expectancy_r": None}
+    hits = [t for t in trades if t.exit_reason == "target"]
+    hit_rate = len(hits) / n
+    expectancy = sum(t.r_multiple for t in trades) / n
+    return {"n": n, "hit_rate": hit_rate, "expectancy_r": expectancy}
+
+
+def bucket_by_target_r(trades: list[Trade]) -> list[dict]:
+    """E13.1 — break qualified trades into target-R-distance buckets."""
+    active = _active_trades(trades)
+    result = []
+    for lo, hi, label in _TARGET_R_BUCKETS:
+        bucket = [t for t in active if t.target_r is not None and lo <= t.target_r < hi]
+        result.append({"bucket": label, **_target_bucket_stats(bucket)})
+    return result
+
+
+def bucket_by_target_atr(trades: list[Trade]) -> list[dict]:
+    """E13.1 — break qualified trades into target-ATR-distance buckets."""
+    active = _active_trades(trades)
+    result = []
+    for lo, hi, label in _TARGET_ATR_BUCKETS:
+        bucket = [t for t in active if t.target_atr is not None and lo <= t.target_atr < hi]
+        result.append({"bucket": label, **_target_bucket_stats(bucket)})
+    return result
+
+
 # ── Monthly signal count helper ───────────────────────────────────────────────
 
 def _monthly_signal_counts(signals: list[Signal]) -> dict[str, int]:
@@ -318,6 +406,42 @@ def render_report(
             lines.append(f"| {reason} | {cnt} |")
     lines.append("")
 
+    # E13.1 — failure breakdown
+    fa = failure_analysis(qualified_trades)
+    if fa["total_non_winners"] > 0:
+        lines += ["\n## Non-winner Analysis\n"]
+        lines += [
+            f"| Failure mode | Count | % |",
+            f"|--------------|-------|---|",
+            f"| Stop-out | {fa['stop_out']} | {fa['stop_out']/fa['total_non_winners']:.0%} |",
+            f"| Time-stop | {fa['time_stop']} | {fa['time_stop']/fa['total_non_winners']:.0%} |",
+        ]
+        if fa["other"]:
+            lines.append(f"| Other | {fa['other']} | {fa['other']/fa['total_non_winners']:.0%} |")
+        lines.append(f"\n*{fa['interpretation']}*\n")
+
+    # E13.1 — target distance
+    tr_buckets = bucket_by_target_r(qualified_trades)
+    ta_buckets = bucket_by_target_atr(qualified_trades)
+
+    if any(b["n"] > 0 for b in tr_buckets):
+        lines += ["\n## Target Distance Analysis — by R-multiple\n"]
+        lines += ["| Distance | n | Hit rate | E(R) |", "|----------|---|----------|------|"]
+        for b in tr_buckets:
+            hr = f"{b['hit_rate']:.0%}" if b["hit_rate"] is not None else "—"
+            ex = f"{b['expectancy_r']:.3f}" if b["expectancy_r"] is not None else "—"
+            lines.append(f"| {b['bucket']} | {b['n']} | {hr} | {ex} |")
+        lines.append("")
+
+    if any(b["n"] > 0 for b in ta_buckets):
+        lines += ["\n## Target Distance Analysis — by ATR multiple\n"]
+        lines += ["| Distance | n | Hit rate | E(R) |", "|----------|---|----------|------|"]
+        for b in ta_buckets:
+            hr = f"{b['hit_rate']:.0%}" if b["hit_rate"] is not None else "—"
+            ex = f"{b['expectancy_r']:.3f}" if b["expectancy_r"] is not None else "—"
+            lines.append(f"| {b['bucket']} | {b['n']} | {hr} | {ex} |")
+        lines.append("")
+
     if attribution:
         lines += ["\n## Gate Attribution (near-miss analysis)\n"]
         lines += [
@@ -387,6 +511,9 @@ def render_report(
         "conf_buckets": conf_buckets,
         "monthly_signals": monthly,
         "gate_attribution": attribution,
+        "failure_analysis": fa,
+        "target_r_buckets": tr_buckets,
+        "target_atr_buckets": ta_buckets,
         "biases": [_BIAS_SURVIVORSHIP, _BIAS_LOOK_AHEAD],
         "run_meta": run_meta or {},
         "trades": trades_list,

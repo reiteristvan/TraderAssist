@@ -28,7 +28,10 @@
 .attrib-table th, .attrib-table td { font-size: 12px; padding: 8px 10px; }
 .verdict-cell { font-size: 12px; color: #9090b0; max-width: 220px; }
 
-.trades-table th, .trades-table td { font-size: 12px; padding: 7px 10px; }
+.trades-table { table-layout: auto; width: 100%; }
+.trades-table th, .trades-table td { font-size: 12px; padding: 7px 10px; white-space: nowrap; }
+.trades-table th.num, .trades-table td.num { width: 1%; }
+.trades-table th.compact-col, .trades-table td.compact-col { width: 1%; }
 .ticker-cell { font-weight: 600; font-family: monospace; }
 .date-cell { color: #9090b0; font-size: 11px; }
 .gap-skip-row td { opacity: 0.55; }
@@ -41,6 +44,16 @@
 .reason-stop   { background: #3a1a1a; color: #c46060; }
 .reason-time   { background: #2a2a3a; color: #8090c0; }
 .reason-gap    { background: #2a2520; color: #907060; }
+
+.failure-grid {
+  display: flex; gap: 24px; margin-bottom: 12px;
+}
+.failure-cell { text-align: center; }
+.failure-value { font-size: 28px; font-weight: 700; line-height: 1.1; }
+.failure-label { font-size: 11px; color: #606080; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.05em; }
+.reason-stop-val  { color: #c46060; }
+.reason-time-val  { color: #8090c0; }
+.failure-interp   { font-size: 12px; color: #9090b0; margin: 4px 0 0; }
 
 .bias-box {
   background: #1a1a2a; border: 1px solid #2a2a4a; border-radius: 6px;

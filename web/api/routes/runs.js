@@ -43,12 +43,15 @@ router.get('/runs/:run_id', (req, res) => {
       const reportData = JSON.parse(report.metrics_json || '{}');
       // Support both old flat format and new nested format (full json_data from render_report)
       if (reportData.metrics) {
-        result.metrics          = reportData.metrics;
-        result.score_buckets    = reportData.score_buckets    || [];
-        result.conf_buckets     = reportData.conf_buckets     || [];
-        result.gate_attribution = reportData.gate_attribution || [];
-        result.monthly_signals  = reportData.monthly_signals  || {};
-        result.trades           = reportData.trades           || [];
+        result.metrics            = reportData.metrics;
+        result.score_buckets      = reportData.score_buckets      || [];
+        result.conf_buckets       = reportData.conf_buckets       || [];
+        result.gate_attribution   = reportData.gate_attribution   || [];
+        result.monthly_signals    = reportData.monthly_signals    || {};
+        result.trades             = reportData.trades             || [];
+        result.failure_analysis   = reportData.failure_analysis   || null;
+        result.target_r_buckets   = reportData.target_r_buckets   || [];
+        result.target_atr_buckets = reportData.target_atr_buckets || [];
       } else {
         result.metrics = reportData;
       }

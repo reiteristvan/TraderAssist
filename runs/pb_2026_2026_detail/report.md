@@ -8,7 +8,7 @@
 - Earnings gate: on
 - Time stop: 10 sessions
 - Entry: next_open
-- Git hash: 807f094
+- Git hash: 9e8b5b7
 
 ## Summary Metrics
 
@@ -67,6 +67,38 @@
 | time_stop | 44 |
 | gap_skip_down | 13 |
 | gap_skip_up | 2 |
+
+
+## Non-winner Analysis
+
+| Failure mode | Count | % |
+|--------------|-------|---|
+| Stop-out | 99 | 94% |
+| Time-stop | 6 | 6% |
+
+*Stop-out dominated (94%) — setups are breaking down; the issue is setup quality rather than target distance.*
+
+
+## Target Distance Analysis — by R-multiple
+
+| Distance | n | Hit rate | E(R) |
+|----------|---|----------|------|
+| 1.0–1.5×R | 19 | 37% | 0.158 |
+| 1.5–2.0×R | 27 | 22% | 0.026 |
+| 2.0–2.5×R | 25 | 28% | 0.148 |
+| 2.5–3.0×R | 15 | 20% | 0.489 |
+| 3.0+×R | 86 | 15% | 0.442 |
+
+
+## Target Distance Analysis — by ATR multiple
+
+| Distance | n | Hit rate | E(R) |
+|----------|---|----------|------|
+| <1.0 ATR | 18 | 72% | -0.017 |
+| 1.0–1.5 ATR | 8 | 62% | 0.174 |
+| 1.5–2.0 ATR | 34 | 44% | 0.457 |
+| 2.0–2.5 ATR | 52 | 31% | 0.785 |
+| 2.5+ ATR | 86 | 7% | 0.001 |
 
 
 ## Gate Attribution (near-miss analysis)

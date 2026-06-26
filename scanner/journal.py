@@ -194,6 +194,8 @@ def resolve_open_signals(
                 "r_multiple": trade.r_multiple,
                 "holding_days": trade.holding_days,
                 "flags": json.dumps(trade.flags),
+                "target_r": trade.target_r,
+                "target_atr": trade.target_atr,
             }
             store_db.update_signal_outcome(conn, row["id"], outcome)
             resolved += 1
@@ -313,6 +315,8 @@ def write_backtest_to_db(
                     "r_multiple": trade.r_multiple,
                     "holding_days": trade.holding_days,
                     "flags": json.dumps(trade.flags),
+                    "target_r": trade.target_r,
+                    "target_atr": trade.target_atr,
                 })
 
     store_db.insert_backtest_report(conn, run_id, metrics, biases)

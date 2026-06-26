@@ -417,6 +417,77 @@
       "verdict": "positive gate value (near-misses underperform qualified)"
     }
   ],
+  "failure_analysis": {
+    "total_non_winners": 105,
+    "stop_out": 99,
+    "time_stop": 6,
+    "other": 0,
+    "interpretation": "Stop-out dominated (94%) \u2014 setups are breaking down; the issue is setup quality rather than target distance."
+  },
+  "target_r_buckets": [
+    {
+      "bucket": "1.0\u20131.5\u00d7R",
+      "n": 19,
+      "hit_rate": 0.3684210526315789,
+      "expectancy_r": 0.15789898980652894
+    },
+    {
+      "bucket": "1.5\u20132.0\u00d7R",
+      "n": 27,
+      "hit_rate": 0.2222222222222222,
+      "expectancy_r": 0.026313094435305523
+    },
+    {
+      "bucket": "2.0\u20132.5\u00d7R",
+      "n": 25,
+      "hit_rate": 0.28,
+      "expectancy_r": 0.14845759946159337
+    },
+    {
+      "bucket": "2.5\u20133.0\u00d7R",
+      "n": 15,
+      "hit_rate": 0.2,
+      "expectancy_r": 0.4887438842649969
+    },
+    {
+      "bucket": "3.0+\u00d7R",
+      "n": 86,
+      "hit_rate": 0.1511627906976744,
+      "expectancy_r": 0.4424783217055434
+    }
+  ],
+  "target_atr_buckets": [
+    {
+      "bucket": "<1.0 ATR",
+      "n": 18,
+      "hit_rate": 0.7222222222222222,
+      "expectancy_r": -0.01697784525216765
+    },
+    {
+      "bucket": "1.0\u20131.5 ATR",
+      "n": 8,
+      "hit_rate": 0.625,
+      "expectancy_r": 0.17420558431635388
+    },
+    {
+      "bucket": "1.5\u20132.0 ATR",
+      "n": 34,
+      "hit_rate": 0.4411764705882353,
+      "expectancy_r": 0.45688066972198127
+    },
+    {
+      "bucket": "2.0\u20132.5 ATR",
+      "n": 52,
+      "hit_rate": 0.3076923076923077,
+      "expectancy_r": 0.7848378917276917
+    },
+    {
+      "bucket": "2.5+ ATR",
+      "n": 86,
+      "hit_rate": 0.06976744186046512,
+      "expectancy_r": 0.0008610709869339338
+    }
+  ],
   "biases": [
     "**Survivorship bias** \u2014 universe contains currently-listed names only; delisted/bankrupt names are absent. Results are optimistic relative to the real investable universe at each historical date.",
     "**Look-ahead bias (fundamentals)** \u2014 quality fields (market cap, profitability, debt/equity, sector) reflect present-day values applied to all historical dates. A name that went from small-cap to mid-cap during the backtest period may have been misclassified in early dates."
@@ -430,7 +501,7 @@
     "capture_near_misses": 1,
     "time_stop": 10,
     "entry": "next_open",
-    "git_hash": "807f094",
+    "git_hash": "9e8b5b7",
     "total_signals": 1404,
     "qualified_signals": 213
   },

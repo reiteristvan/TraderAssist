@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 _DEFAULT_DB = Path("data/scanner.db")
-_SCHEMA_VERSION = 6
+_SCHEMA_VERSION = 7
 
 # ── DDL ───────────────────────────────────────────────────────────────────────
 
@@ -57,6 +57,8 @@ CREATE TABLE IF NOT EXISTS signals (
     holding_days INTEGER,
     flags       TEXT,
     notes       TEXT,
+    target_r    REAL,
+    target_atr  REAL,
     created_at  TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE (date, ticker, strategy, source, run_id)
 );
@@ -133,6 +135,11 @@ def migrate(db_path: Optional[Path] = None, conn: Optional[sqlite3.Connection] =
             if current < 6:
                 conn.execute("ALTER TABLE signals ADD COLUMN notes TEXT")
                 conn.execute("UPDATE schema_version SET version = 6")
+                current = 6
+            if current < 7:
+                conn.execute("ALTER TABLE signals ADD COLUMN target_r REAL")
+                conn.execute("ALTER TABLE signals ADD COLUMN target_atr REAL")
+                conn.execute("UPDATE schema_version SET version = 7")
         conn.commit()
     finally:
         if own:
@@ -230,6 +237,7 @@ def get_live_resolved_signals(conn: sqlite3.Connection) -> list[dict]:
 
 
 def update_signal_outcome(conn: sqlite3.Connection, signal_id: int, outcome: dict) -> None:
+    merged = {"target_r": None, "target_atr": None, **outcome}
     conn.execute(
         """UPDATE signals SET
                outcome_checked_at = :outcome_checked_at,
@@ -238,9 +246,11 @@ def update_signal_outcome(conn: sqlite3.Connection, signal_id: int, outcome: dic
                exit_reason = :exit_reason,
                r_multiple  = :r_multiple,
                holding_days = :holding_days,
-               flags       = :flags
+               flags       = :flags,
+               target_r    = :target_r,
+               target_atr  = :target_atr
            WHERE id = :id""",
-        {**outcome, "id": signal_id},
+        {**merged, "id": signal_id},
     )
     conn.commit()
 

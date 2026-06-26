@@ -47,6 +47,8 @@ class Trade:
     qualified: bool
     failed_gates: list[str] = field(default_factory=list)
     flags: dict = field(default_factory=dict)
+    target_r: Optional[float] = None    # (target − entry) / (entry − stop)
+    target_atr: Optional[float] = None  # (target − entry) / signal ATR
 
 
 def simulate_trades(
@@ -142,6 +144,9 @@ def simulate_trades(
             continue
 
         risk = entry_px - sig.stop  # always > 0 after gap guards
+        target_dist = sig.target - entry_px
+        target_r_val = target_dist / risk
+        target_atr_val = (target_dist / sig.atr) if sig.atr and sig.atr > 0 else None
 
         # Walk forward bars; bar_idx 0 = entry bar (session 1 of holding)
         exit_date = None
@@ -200,6 +205,8 @@ def simulate_trades(
             r_multiple=r_multiple,
             holding_days=holding_days,
             flags=flags,
+            target_r=target_r_val,
+            target_atr=target_atr_val,
         ))
 
     return trades

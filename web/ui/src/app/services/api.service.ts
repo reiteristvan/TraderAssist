@@ -82,6 +82,21 @@ export interface TradeRecord {
   score: number;
 }
 
+export interface FailureAnalysis {
+  total_non_winners: number;
+  stop_out: number;
+  time_stop: number;
+  other: number;
+  interpretation: string;
+}
+
+export interface TargetBucket {
+  bucket: string;
+  n: number;
+  hit_rate: number | null;
+  expectancy_r: number | null;
+}
+
 export interface GateAttrib {
   gate: string;
   n: number;
@@ -106,6 +121,9 @@ export interface Run {
   monthly_signals?: Record<string, number> | null;
   biases?: string[] | null;
   trades?: TradeRecord[] | null;
+  failure_analysis?: FailureAnalysis | null;
+  target_r_buckets?: TargetBucket[] | null;
+  target_atr_buckets?: TargetBucket[] | null;
 }
 
 export interface SummaryStats {

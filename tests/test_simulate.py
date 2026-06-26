@@ -275,6 +275,70 @@ def test_multiple_signals():
     assert reasons["B"] == "stop"
 
 
+# ── E13.1 — target_r and target_atr fields ───────────────────────────────────
+
+def test_target_r_and_atr_on_normal_trade():
+    """target_r = target_dist/risk; target_atr = target_dist/atr (atr=1.0)."""
+    sig = _signal(sig_date=date(2026, 1, 2), stop=90.0, target=110.0)
+    # entry_px=100, risk=10, target_dist=10 → target_r=1.0, target_atr=10.0
+    bars = _bars(
+        [date(2026, 1, 2), date(2026, 1, 5), date(2026, 1, 6)],
+        opens  =[100.0, 100.0, 100.0],
+        highs  =[100.5, 101.0, 111.0],
+        lows   =[99.5,   99.0,  99.0],
+        closes =[100.0, 100.5, 110.0],
+    )
+    [trade] = simulate_trades([sig], _provider({"TEST": bars}))
+
+    assert trade.target_r   == pytest.approx(1.0)
+    assert trade.target_atr == pytest.approx(10.0)
+
+
+def test_target_r_same_regardless_of_exit():
+    """target_r reflects setup geometry, not outcome — same for stop hit."""
+    sig = _signal(sig_date=date(2026, 1, 2), stop=90.0, target=110.0)
+    bars = _bars(
+        [date(2026, 1, 2), date(2026, 1, 5), date(2026, 1, 6)],
+        opens  =[100.0, 100.0, 100.0],
+        highs  =[100.5, 101.0, 100.0],
+        lows   =[99.5,   99.0,  89.0],
+        closes =[100.0, 100.5,  89.5],
+    )
+    [trade] = simulate_trades([sig], _provider({"TEST": bars}))
+
+    assert trade.exit_reason == "stop"
+    assert trade.target_r   == pytest.approx(1.0)
+    assert trade.target_atr == pytest.approx(10.0)
+
+
+def test_target_r_none_for_gap_skip():
+    """Gap-skip trades have target_r=None and target_atr=None."""
+    sig = _signal(sig_date=date(2026, 1, 2), stop=90.0, target=110.0)
+    bars = _bars(
+        [date(2026, 1, 2), date(2026, 1, 5)],
+        opens  =[100.0, 111.0],
+        highs  =[100.5, 112.0],
+        lows   =[99.5,  110.0],
+        closes =[100.0, 111.0],
+    )
+    [trade] = simulate_trades([sig], _provider({"TEST": bars}))
+
+    assert trade.exit_reason == "gap_skip_up"
+    assert trade.target_r   is None
+    assert trade.target_atr is None
+
+
+def test_target_r_none_for_incomplete():
+    """Incomplete trades have target_r=None."""
+    sig = _signal(sig_date=date(2026, 1, 5))
+    bars = _bars([date(2026, 1, 5)], [100.0], [101.0], [99.0], [100.0])
+    [trade] = simulate_trades([sig], _provider({"TEST": bars}))
+
+    assert trade.exit_reason == "incomplete"
+    assert trade.target_r   is None
+    assert trade.target_atr is None
+
+
 # ── Near-miss signals preserve failed_gates in Trade ─────────────────────────
 
 def test_near_miss_failed_gates_preserved():

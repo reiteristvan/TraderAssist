@@ -7,7 +7,7 @@
   "capture_near_misses": 1,
   "time_stop": 10,
   "entry": "next_open",
-  "git_hash": "807f094",
+  "git_hash": "9e8b5b7",
   "total_signals": 1404,
   "qualified_signals": 213
 }

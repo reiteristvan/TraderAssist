@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { ApiService, Run, CoreMetrics, ScoreBucket, ConfBucket, GateAttrib, TradeRecord } from '../../services/api.service';
+import { ApiService, Run, CoreMetrics, ScoreBucket, ConfBucket, GateAttrib, TradeRecord, FailureAnalysis, TargetBucket } from '../../services/api.service';
 
 @Component({
   selector: 'app-backtests',
@@ -55,6 +55,26 @@ export class BacktestsComponent implements OnInit {
 
   get trades(): TradeRecord[] {
     return this.selectedRun?.trades ?? [];
+  }
+
+  get failureAnalysis(): FailureAnalysis | null {
+    return this.selectedRun?.failure_analysis ?? null;
+  }
+
+  get targetRBuckets(): TargetBucket[] {
+    return this.selectedRun?.target_r_buckets ?? [];
+  }
+
+  get targetAtrBuckets(): TargetBucket[] {
+    return this.selectedRun?.target_atr_buckets ?? [];
+  }
+
+  get hasTargetRData(): boolean {
+    return this.targetRBuckets.some(b => b.n > 0);
+  }
+
+  get hasTargetAtrData(): boolean {
+    return this.targetAtrBuckets.some(b => b.n > 0);
   }
 
   formatReason(reason: string): string {

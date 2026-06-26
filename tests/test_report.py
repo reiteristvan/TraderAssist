@@ -22,6 +22,9 @@ from scanner.report import (
     render_report,
     _monotonic_verdict,
     MIN_ATTRIBUTION_N,
+    failure_analysis,
+    bucket_by_target_r,
+    bucket_by_target_atr,
 )
 
 
@@ -37,6 +40,8 @@ def _trade(
     signal_date: date = date(2026, 1, 2),
     exit_date: date = date(2026, 1, 12),
     flags: dict | None = None,
+    target_r: float | None = None,
+    target_atr: float | None = None,
 ) -> Trade:
     return Trade(
         ticker="TEST",
@@ -54,6 +59,8 @@ def _trade(
         qualified=qualified,
         failed_gates=failed_gates or [],
         flags=flags or {},
+        target_r=target_r,
+        target_atr=target_atr,
     )
 
 
@@ -277,3 +284,104 @@ def test_render_report_structure():
     md, json_data = render_report([], [], [])
     for key in ("metrics", "score_buckets", "conf_buckets", "gate_attribution", "biases"):
         assert key in json_data
+
+
+# ── E13.1 — failure_analysis ──────────────────────────────────────────────────
+
+def test_failure_analysis_mixed():
+    """Equal stop/time-stop split → mixed interpretation."""
+    trades = (
+        [_trade(-1.0, exit_reason="stop")] * 3
+        + [_trade(0.0, exit_reason="time_stop")] * 3
+    )
+    fa = failure_analysis(trades)
+    assert fa["total_non_winners"] == 6
+    assert fa["stop_out"] == 3
+    assert fa["time_stop"] == 3
+    assert fa["stop_out"] + fa["time_stop"] + fa["other"] == fa["total_non_winners"]
+    assert "mixed" in fa["interpretation"].lower() or "Mixed" in fa["interpretation"]
+
+
+def test_failure_analysis_time_stop_heavy():
+    """7 time-stops vs 1 stop-out → time-stop-dominated interpretation."""
+    trades = (
+        [_trade(-1.0, exit_reason="stop")] * 1
+        + [_trade(0.0, exit_reason="time_stop")] * 7
+    )
+    fa = failure_analysis(trades)
+    assert fa["total_non_winners"] == 8
+    assert fa["time_stop"] == 7
+    assert "time" in fa["interpretation"].lower()
+
+
+def test_failure_analysis_stop_heavy():
+    """7 stop-outs vs 1 time-stop → stop-out-dominated interpretation."""
+    trades = (
+        [_trade(-1.0, exit_reason="stop")] * 7
+        + [_trade(0.0, exit_reason="time_stop")] * 1
+    )
+    fa = failure_analysis(trades)
+    assert fa["stop_out"] == 7
+    assert fa["stop_out"] + fa["time_stop"] + fa["other"] == fa["total_non_winners"]
+    assert "stop" in fa["interpretation"].lower()
+
+
+def test_failure_analysis_wins_excluded():
+    """Winning trades are not included in the non-winner count."""
+    trades = (
+        [_trade(+2.0, exit_reason="target")] * 3
+        + [_trade(-1.0, exit_reason="stop")] * 2
+    )
+    fa = failure_analysis(trades)
+    assert fa["total_non_winners"] == 2
+    assert fa["stop_out"] == 2
+
+
+def test_failure_analysis_no_losers():
+    """Zero non-winners → graceful output."""
+    trades = [_trade(+1.0)] * 5
+    fa = failure_analysis(trades)
+    assert fa["total_non_winners"] == 0
+    assert fa["stop_out"] == 0
+    assert fa["time_stop"] == 0
+    assert "No non-winning" in fa["interpretation"]
+
+
+# ── E13.1 — bucket_by_target_r / bucket_by_target_atr ────────────────────────
+
+def test_bucket_by_target_r_basic():
+    """Trades with target_r=2.2 land in the 2.0–2.5 bucket."""
+    trades = (
+        [_trade(+1.0, target_r=2.2)] * 30
+        + [_trade(-1.0, exit_reason="stop", target_r=2.2)] * 30
+    )
+    buckets = bucket_by_target_r(trades)
+    hit = next(b for b in buckets if b["bucket"].startswith("2.0"))
+    assert hit["n"] == 60
+    assert hit["hit_rate"] == pytest.approx(0.5)
+
+
+def test_bucket_by_target_r_none_excluded():
+    """Trades with target_r=None are not counted in any bucket."""
+    trades = [_trade(+1.0, target_r=None)] * 10
+    buckets = bucket_by_target_r(trades)
+    assert all(b["n"] == 0 for b in buckets)
+
+
+def test_bucket_by_target_atr_basic():
+    """Trades with target_atr=1.8 land in the 1.5–2.0 bucket."""
+    trades = [_trade(+1.0, target_atr=1.8)] * 20
+    buckets = bucket_by_target_atr(trades)
+    hit = next(b for b in buckets if b["bucket"].startswith("1.5"))
+    assert hit["n"] == 20
+    assert hit["hit_rate"] == pytest.approx(1.0)
+
+
+# ── E13.1 — render_report has new keys ───────────────────────────────────────
+
+def test_render_report_has_failure_and_bucket_keys():
+    """render_report JSON output contains E13.1 keys."""
+    md, json_data = render_report([], [], [])
+    assert "failure_analysis" in json_data
+    assert "target_r_buckets" in json_data
+    assert "target_atr_buckets" in json_data

@@ -206,6 +206,80 @@
         </table>
       </div>
 
+      <!-- Non-winner analysis -->
+      <div class="card" *ngIf="failureAnalysis && failureAnalysis.total_non_winners > 0">
+        <h2>Non-winner analysis</h2>
+        <div class="failure-grid">
+          <div class="failure-cell">
+            <div class="failure-value reason-stop-val">{{ failureAnalysis.stop_out }}</div>
+            <div class="failure-label">Stop-out</div>
+          </div>
+          <div class="failure-cell">
+            <div class="failure-value reason-time-val">{{ failureAnalysis.time_stop }}</div>
+            <div class="failure-label">Time-stop</div>
+          </div>
+          <div class="failure-cell" *ngIf="failureAnalysis.other > 0">
+            <div class="failure-value">{{ failureAnalysis.other }}</div>
+            <div class="failure-label">Other</div>
+          </div>
+        </div>
+        <p class="failure-interp">{{ failureAnalysis.interpretation }}</p>
+      </div>
+
+      <!-- Target distance — by R -->
+      <div class="card" *ngIf="hasTargetRData">
+        <h2>Target distance — by R-multiple</h2>
+        <p class="section-desc">How ambitious was the target (in risk units) vs. the actual hit rate and expectancy.</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Target distance</th>
+              <th class="num">n</th>
+              <th class="num">Hit rate</th>
+              <th class="num">E(R)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let b of targetRBuckets" [class.muted-row]="b.n === 0">
+              <td>{{ b.bucket }}</td>
+              <td class="num">{{ b.n }}</td>
+              <td class="num">{{ b.hit_rate != null ? fmt(b.hit_rate) : '—' }}</td>
+              <td class="num" [class.positive]="(b.expectancy_r ?? 0) > 0"
+                              [class.negative]="(b.expectancy_r ?? 0) < 0">
+                {{ b.expectancy_r != null ? fmtR3(b.expectancy_r) : '—' }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Target distance — by ATR -->
+      <div class="card" *ngIf="hasTargetAtrData">
+        <h2>Target distance — by ATR multiple</h2>
+        <p class="section-desc">Same breakdown expressed in ATR units.</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Target distance</th>
+              <th class="num">n</th>
+              <th class="num">Hit rate</th>
+              <th class="num">E(R)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let b of targetAtrBuckets" [class.muted-row]="b.n === 0">
+              <td>{{ b.bucket }}</td>
+              <td class="num">{{ b.n }}</td>
+              <td class="num">{{ b.hit_rate != null ? fmt(b.hit_rate) : '—' }}</td>
+              <td class="num" [class.positive]="(b.expectancy_r ?? 0) > 0"
+                              [class.negative]="(b.expectancy_r ?? 0) < 0">
+                {{ b.expectancy_r != null ? fmtR3(b.expectancy_r) : '—' }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
       <!-- Trade list -->
       <div class="card" *ngIf="trades.length > 0">
         <h2>All trades ({{ trades.length }})</h2>
@@ -213,10 +287,11 @@
           <table class="trades-table">
             <thead>
               <tr>
-                <th>Ticker</th>
-                <th>Opened</th>
-                <th>Closed</th>
-                <th>Reason</th>
+                <th class="compact-col">Ticker</th>
+                <th class="compact-col">Opened</th>
+                <th class="compact-col">Closed</th>
+                <th class="compact-col">Reason</th>
+                <th class="num">Entry price</th>
                 <th class="num">Stop</th>
                 <th class="num">Target</th>
                 <th class="num">Exit price</th>
@@ -225,14 +300,15 @@
             </thead>
             <tbody>
               <tr *ngFor="let t of trades" [class.gap-skip-row]="t.exit_reason === 'gap_skip_up' || t.exit_reason === 'gap_skip_down'">
-                <td class="ticker-cell">{{ t.ticker }}</td>
-                <td class="date-cell">{{ t.entry_date ?? '—' }}</td>
-                <td class="date-cell">{{ t.exit_date ?? '—' }}</td>
-                <td>
+                <td class="compact-col ticker-cell">{{ t.ticker }}</td>
+                <td class="compact-col date-cell">{{ t.entry_date ?? '—' }}</td>
+                <td class="compact-col date-cell">{{ t.exit_date ?? '—' }}</td>
+                <td class="compact-col">
                   <span class="reason-badge" [ngClass]="reasonClass(t.exit_reason)">
                     {{ formatReason(t.exit_reason) }}
                   </span>
                 </td>
+                <td class="num">{{ t.entry_px != null ? (t.entry_px | number:'1.2-2') : '—' }}</td>
                 <td class="num">{{ t.stop != null ? (t.stop | number:'1.2-2') : '—' }}</td>
                 <td class="num">{{ t.target != null ? (t.target | number:'1.2-2') : '—' }}</td>
                 <td class="num">{{ t.exit_px != null ? (t.exit_px | number:'1.2-2') : '—' }}</td>
