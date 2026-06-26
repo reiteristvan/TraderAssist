@@ -36,23 +36,15 @@ def market_regime(
         return "NEUTRAL"
 
 
-def ath_zone(
-    ticker: str,
+def _ath_zone_label(
     close: float,
-    end: date | None = None,
+    ath: float | None,
 ) -> tuple[float, float, str]:
-    """Return (ath_price, dist_pct, zone_label) for a ticker.
+    """Compute ATH zone from a known ATH value — no disk access.
 
-    Zone labels (verbatim from swing_scanner fetch_ath):
-      NEW_ATH  — within 1%   (clear skies, no resistance)
-      NEAR_ATH — within 10%  (minimal overhead supply)
-      MODERATE — 10–30% below ATH
-      FAR      — 30–60% below ATH
-      DEEP     — 60%+ below ATH
-    Returns (0, 0, "UNKNOWN") on data shortage.
+    Separated from ath_zone() so the backtest loop can use a pre-computed
+    ATH series (expanding max) without re-reading parquet on every iteration.
     """
-    from scanner.data_store import get_ath as _get_ath
-    ath = _get_ath(ticker, end=end)
     if ath is None or ath == 0:
         return (0.0, 0.0, "UNKNOWN")
 
@@ -70,6 +62,25 @@ def ath_zone(
         zone = "DEEP"
 
     return (round(ath, 2), round(dist_pct, 1), zone)
+
+
+def ath_zone(
+    ticker: str,
+    close: float,
+    end: date | None = None,
+) -> tuple[float, float, str]:
+    """Return (ath_price, dist_pct, zone_label) for a ticker.
+
+    Zone labels (verbatim from swing_scanner fetch_ath):
+      NEW_ATH  — within 1%   (clear skies, no resistance)
+      NEAR_ATH — within 10%  (minimal overhead supply)
+      MODERATE — 10–30% below ATH
+      FAR      — 30–60% below ATH
+      DEEP     — 60%+ below ATH
+    Returns (0, 0, "UNKNOWN") on data shortage.
+    """
+    from scanner.data_store import get_ath as _get_ath
+    return _ath_zone_label(close, _get_ath(ticker, end=end))
 
 
 def compute_confidence(

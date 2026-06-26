@@ -1,0 +1,437 @@
+{
+  "metrics": {
+    "count": 199,
+    "win_rate": 0.46733668341708545,
+    "avg_win_r": 1.713972103953187,
+    "avg_loss_r": -0.9727992052206962,
+    "expectancy_r": 0.28282758750880704,
+    "median_holding_days": 4,
+    "exit_reason_breakdown": {
+      "stop": 100,
+      "target": 55,
+      "gap_skip_up": 2,
+      "gap_skip_down": 13,
+      "time_stop": 44
+    },
+    "max_drawdown_r": 48.99546737613621,
+    "ambiguous_bar_pct": 0.0,
+    "gap_skip_pct": 0.07009345794392523,
+    "incomplete_pct": 0.0
+  },
+  "score_buckets": [
+    {
+      "bucket": "40\u201354",
+      "n": 0,
+      "win_rate": null,
+      "expectancy_r": null,
+      "verdict": "insufficient n"
+    },
+    {
+      "bucket": "55\u201369",
+      "n": 0,
+      "win_rate": null,
+      "expectancy_r": null,
+      "verdict": "insufficient n"
+    },
+    {
+      "bucket": "70\u201384",
+      "n": 7,
+      "win_rate": 0.7142857142857143,
+      "expectancy_r": 0.7959504299089443,
+      "verdict": "insufficient n"
+    },
+    {
+      "bucket": "85\u2013100",
+      "n": 191,
+      "win_rate": 0.45549738219895286,
+      "expectancy_r": 0.2588043136440698,
+      "verdict": "ok"
+    }
+  ],
+  "conf_buckets": [
+    {
+      "bucket": "LOW",
+      "n": 2,
+      "win_rate": 1.0,
+      "expectancy_r": 0.43176857809636404,
+      "verdict": "insufficient n"
+    },
+    {
+      "bucket": "MEDIUM",
+      "n": 143,
+      "win_rate": 0.4405594405594406,
+      "expectancy_r": 0.21425426313809467,
+      "verdict": "ok"
+    },
+    {
+      "bucket": "HIGH",
+      "n": 54,
+      "win_rate": 0.5185185185185185,
+      "expectancy_r": 0.4589035764687471,
+      "verdict": "ok"
+    }
+  ],
+  "monthly_signals": {
+    "2026-01": 49,
+    "2026-02": 18,
+    "2026-03": 25,
+    "2026-04": 13,
+    "2026-05": 93,
+    "2026-06": 16
+  },
+  "gate_attribution": [
+    {
+      "gate": "200-MA distance in range",
+      "n": 48,
+      "expectancy_r": -0.07141041109335024,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -0.35423799860215727,
+      "verdict": "questionable gate value (near-misses match or beat qualified)"
+    },
+    {
+      "gate": "ADX(14) trend strength",
+      "n": 131,
+      "expectancy_r": 0.71505396084263,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": 0.4322263733338229,
+      "verdict": "positive gate value (near-misses underperform qualified)"
+    },
+    {
+      "gate": "At a logical support level",
+      "n": 66,
+      "expectancy_r": -0.28289721494029957,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -0.5657248024491066,
+      "verdict": "questionable gate value (near-misses match or beat qualified)"
+    },
+    {
+      "gate": "Debt/equity acceptable",
+      "n": 30,
+      "expectancy_r": -0.10068300697862075,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -0.3835105944874278,
+      "verdict": "questionable gate value (near-misses match or beat qualified)"
+    },
+    {
+      "gate": "Earnings clear",
+      "n": 16,
+      "expectancy_r": -0.21071344921297797,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -0.493541036721785,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Liquidity",
+      "n": 8,
+      "expectancy_r": 0.503858003409948,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": 0.22103041590114098,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Market cap in range",
+      "n": 63,
+      "expectancy_r": -0.12617474209097393,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -0.409002329599781,
+      "verdict": "questionable gate value (near-misses match or beat qualified)"
+    },
+    {
+      "gate": "Near 52w high in last 60d",
+      "n": 54,
+      "expectancy_r": 0.0077954127130125325,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -0.2750321747957945,
+      "verdict": "questionable gate value (near-misses match or beat qualified)"
+    },
+    {
+      "gate": "Profitable",
+      "n": 1,
+      "expectancy_r": 2.023255009339349,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": 1.740427421830542,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Pullback depth",
+      "n": 92,
+      "expectancy_r": 0.46732498291372077,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": 0.18449739540491372,
+      "verdict": "positive gate value (near-misses underperform qualified)"
+    },
+    {
+      "gate": "Pullback duration 1d",
+      "n": 4,
+      "expectancy_r": 0.3293107520526598,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": 0.04648316454385276,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Pullback duration 21d",
+      "n": 8,
+      "expectancy_r": -0.22373837146970094,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -0.506565958978508,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Pullback duration 22d",
+      "n": 5,
+      "expectancy_r": -0.16610464919233442,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -0.44893223670114146,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Pullback duration 23d",
+      "n": 4,
+      "expectancy_r": 1.4010327620785121,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": 1.118205174569705,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Pullback duration 24d",
+      "n": 5,
+      "expectancy_r": 0.21087541763477127,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -0.07195216987403577,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Pullback duration 25d",
+      "n": 3,
+      "expectancy_r": -0.1538803417525383,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -0.4367079292613454,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Pullback duration 26d",
+      "n": 3,
+      "expectancy_r": 0.3802312148175025,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": 0.09740362730869545,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Pullback duration 27d",
+      "n": 3,
+      "expectancy_r": 0.5413257121620084,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": 0.2584981246532014,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Pullback duration 29d",
+      "n": 2,
+      "expectancy_r": -0.04424039571805499,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -0.32706798322686204,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Pullback duration 2d",
+      "n": 10,
+      "expectancy_r": 0.2854912513059944,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": 0.0026636637971873545,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Pullback duration 30d",
+      "n": 1,
+      "expectancy_r": -1.0,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -1.282827587508807,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Pullback duration 32d",
+      "n": 1,
+      "expectancy_r": -1.0,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -1.282827587508807,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Pullback duration 33d",
+      "n": 3,
+      "expectancy_r": -0.3937362553598185,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -0.6765638428686256,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Pullback duration 34d",
+      "n": 1,
+      "expectancy_r": -1.0,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -1.282827587508807,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Pullback duration 35d",
+      "n": 2,
+      "expectancy_r": -0.2648652602111049,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -0.5476928477199119,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Pullback duration 38d",
+      "n": 1,
+      "expectancy_r": -1.0,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -1.282827587508807,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Pullback duration 39d",
+      "n": 2,
+      "expectancy_r": 0.15521404256768867,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -0.12761354494111837,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "RSI(14) reset",
+      "n": 18,
+      "expectancy_r": -0.11313201762718002,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -0.39595960513598705,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Relative strength vs SPY",
+      "n": 3,
+      "expectancy_r": 0.1088687602354798,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -0.17395882727332723,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "SMA50 rising (20 sessions)",
+      "n": 6,
+      "expectancy_r": 0.023392657600215583,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -0.25943492990859146,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Sector (XLB) above 50MA",
+      "n": 3,
+      "expectancy_r": -1.0,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -1.282827587508807,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Sector (XLC) above 50MA",
+      "n": 4,
+      "expectancy_r": -0.7538161577019817,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -1.0366437452107888,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Sector (XLE) above 50MA",
+      "n": 11,
+      "expectancy_r": 0.8023960971546898,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": 0.5195685096458829,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Sector (XLF) above 50MA",
+      "n": 51,
+      "expectancy_r": -0.8182583854103561,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -1.101085972919163,
+      "verdict": "questionable gate value (near-misses match or beat qualified)"
+    },
+    {
+      "gate": "Sector (XLI) above 50MA",
+      "n": 6,
+      "expectancy_r": -1.0,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -1.282827587508807,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Sector (XLK) above 50MA",
+      "n": 9,
+      "expectancy_r": -0.4455373073398035,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -0.7283648948486106,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Sector (XLP) above 50MA",
+      "n": 14,
+      "expectancy_r": -0.7471647076928045,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -1.0299922952016116,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Sector (XLRE) above 50MA",
+      "n": 10,
+      "expectancy_r": 1.7665651179831934,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": 1.4837375304743863,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Sector (XLV) above 50MA",
+      "n": 10,
+      "expectancy_r": -0.785708158567408,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -1.068535746076215,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Sector (XLY) above 50MA",
+      "n": 19,
+      "expectancy_r": -0.6600116445656495,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": -0.9428392320744565,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Uptrend (SMA50 > SMA200)",
+      "n": 10,
+      "expectancy_r": 0.9492134149737239,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": 0.6663858274649168,
+      "verdict": "insufficient n"
+    },
+    {
+      "gate": "Volume contraction",
+      "n": 400,
+      "expectancy_r": 0.5110050667909541,
+      "qualified_expectancy_r": 0.28282758750880704,
+      "delta_r": 0.2281774792821471,
+      "verdict": "positive gate value (near-misses underperform qualified)"
+    }
+  ],
+  "biases": [
+    "**Survivorship bias** \u2014 universe contains currently-listed names only; delisted/bankrupt names are absent. Results are optimistic relative to the real investable universe at each historical date.",
+    "**Look-ahead bias (fundamentals)** \u2014 quality fields (market cap, profitability, debt/equity, sector) reflect present-day values applied to all historical dates. A name that went from small-cap to mid-cap during the backtest period may have been misclassified in early dates."
+  ],
+  "run_meta": {
+    "strategy": "pullback",
+    "universe_size": 602,
+    "start": "2026-01-01",
+    "end": "2026-06-25",
+    "earnings_gate": "on",
+    "capture_near_misses": 1,
+    "time_stop": 10,
+    "entry": "next_open",
+    "git_hash": "b1ac62e",
+    "total_signals": 1411,
+    "qualified_signals": 214
+  }
+}

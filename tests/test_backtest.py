@@ -89,29 +89,33 @@ def test_make_context_from_frames_slices_to_as_of():
     daily = _make_trend_bars(260)
     quality = _make_quality()
     as_of = date(2026, 6, 1)
+    as_of_ts = pd.Timestamp(as_of)
+
+    daily_sliced = daily[daily.index <= as_of_ts]
+    market_sliced = {sym: df[df.index <= as_of_ts] for sym, df in full_market.items()}
 
     ctx = _make_context_from_frames(
         ticker="T",
         as_of=as_of,
-        full_daily=daily,
-        full_market=full_market,
+        daily_sliced=daily_sliced,
+        market_sliced=market_sliced,
         quality=quality,
         earnings_dates=[],
     )
     assert ctx is not None
     assert ctx.as_of == as_of
-    # All daily bars ≤ as_of
-    assert (ctx.market_data["SPY"].index <= pd.Timestamp(as_of)).all()
+    assert (ctx.market_data["SPY"].index <= as_of_ts).all()
 
 
 def test_make_context_from_frames_insufficient_rows():
     spy = _make_spy_bars(260)
     full_market = _make_market(spy)
-    # Only 100 bars total
     daily = _make_trend_bars(100)
+    as_of_ts = pd.Timestamp(date(2026, 6, 15))
     ctx = _make_context_from_frames(
         ticker="T", as_of=date(2026, 6, 15),
-        full_daily=daily, full_market=full_market,
+        daily_sliced=daily[daily.index <= as_of_ts],
+        market_sliced={sym: df[df.index <= as_of_ts] for sym, df in full_market.items()},
         quality=_make_quality(), earnings_dates=[],
     )
     assert ctx is None
@@ -121,13 +125,13 @@ def test_make_context_from_frames_earnings_gate_off():
     spy = _make_spy_bars(260)
     full_market = _make_market(spy)
     daily = _make_trend_bars(260)
-    earn_dates = [date(2026, 6, 5)]  # 14 days after as_of 2026-06-15 → would normally return 14
-    # But wait, as_of is 2026-06-15 and earn date is 2026-06-05 which is BEFORE as_of
-    # Use a date after as_of
     earn_dates = [date(2026, 6, 20)]
+    as_of = date(2026, 6, 15)
+    as_of_ts = pd.Timestamp(as_of)
     ctx = _make_context_from_frames(
-        ticker="T", as_of=date(2026, 6, 15),
-        full_daily=daily, full_market=full_market,
+        ticker="T", as_of=as_of,
+        daily_sliced=daily[daily.index <= as_of_ts],
+        market_sliced={sym: df[df.index <= as_of_ts] for sym, df in full_market.items()},
         quality=_make_quality(), earnings_dates=earn_dates,
         earnings_gate=False,
     )

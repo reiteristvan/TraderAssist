@@ -45,26 +45,28 @@ def _days_to_earn_from_list(dates: list[date], as_of: date) -> Optional[int]:
 def _make_context_from_frames(
     ticker: str,
     as_of: date,
-    full_daily: pd.DataFrame,
-    full_market: dict[str, pd.DataFrame],
+    daily_sliced: pd.DataFrame,
+    market_sliced: dict[str, pd.DataFrame],
     quality: QualityInfo,
     earnings_dates: list[date],
+    weekly_sliced: Optional[pd.DataFrame] = None,
     earnings_gate: bool = True,
 ) -> Optional[EvalContext]:
-    """Build EvalContext from pre-loaded frames. Zero disk/network I/O."""
-    as_of_ts = pd.Timestamp(as_of)
+    """Build EvalContext from pre-sliced frames. Zero disk/network/resample I/O.
 
-    daily = full_daily[full_daily.index <= as_of_ts]
-    if len(daily) < _MIN_DAILY_ROWS:
+    All DataFrames must already be sliced to as_of by the caller — this
+    function does no filtering, which is intentional: slicing happens once
+    in the outer loop rather than once per ticker×day.
+    """
+    if len(daily_sliced) < _MIN_DAILY_ROWS:
         return None
 
-    market = {sym: df[df.index <= as_of_ts] for sym, df in full_market.items()}
-    weekly = resample_weekly(daily)
+    weekly = weekly_sliced if weekly_sliced is not None else resample_weekly(daily_sliced)
     days = _days_to_earn_from_list(earnings_dates, as_of) if earnings_gate else None
 
     return EvalContext(
         as_of=as_of,
-        market_data=market,
+        market_data=market_sliced,
         weekly=weekly,
         quality=quality,
         days_to_earnings=days,
@@ -108,7 +110,7 @@ def generate_signals(
     import scanner.strategies.pullback as pb
     import scanner.strategies.breakout as br
     import scanner.targets as _targets
-    from scanner.regime import compute_confidence, market_regime, ath_zone
+    from scanner.regime import compute_confidence, market_regime, _ath_zone_label
     from scanner.targets import count_resistance_obstacles
 
     # ── resolve loaders ────────────────────────────────────────────────────────
@@ -167,6 +169,18 @@ def generate_signals(
     for ticker in bars_by_ticker:
         earnings_by_ticker[ticker] = _earnings_loader(ticker)
 
+    # ── pre-compute per-ticker derived series (saves work inside the inner loop) ─
+    # weekly_by_ticker: resample once, then slice per date (vs resample per date)
+    # ath_series_by_ticker: expanding High max → O(log n) .asof() lookup per date
+    print(f"Pre-computing weekly bars and ATH series for {len(bars_by_ticker)} ticker(s)...")
+    weekly_by_ticker: dict[str, pd.DataFrame] = {}
+    ath_series_by_ticker: dict[str, pd.Series] = {}
+    for ticker, full_daily in bars_by_ticker.items():
+        w = resample_weekly(full_daily)
+        if w is not None:
+            weekly_by_ticker[ticker] = w
+        ath_series_by_ticker[ticker] = full_daily["High"].expanding().max()
+
     # ── derive trading days from SPY (or first available ticker) ──────────────
     spy_bars = bars_by_ticker.get("SPY") or next(iter(bars_by_ticker.values()))
     start_ts = pd.Timestamp(start)
@@ -193,19 +207,28 @@ def generate_signals(
         regime_str: Optional[str] = None
 
         for ticker, full_daily in bars_by_ticker.items():
+            # Slice daily once per ticker×day; reuse for both ctx and fn()
+            daily_sliced = full_daily[full_daily.index <= as_of_ts]
+
+            # Slice pre-computed weekly (O(n_weekly) filter vs full daily resample)
+            full_weekly = weekly_by_ticker.get(ticker)
+            weekly_sliced: Optional[pd.DataFrame] = None
+            if full_weekly is not None:
+                w = full_weekly[full_weekly.index <= as_of_ts]
+                weekly_sliced = w if not w.empty else None
+
             ctx = _make_context_from_frames(
                 ticker=ticker,
                 as_of=d,
-                full_daily=full_daily,
-                full_market=sliced_market,
+                daily_sliced=daily_sliced,
+                market_sliced=sliced_market,
                 quality=quality_by_ticker.get(ticker, QualityInfo(False, None, None, None, None)),
                 earnings_dates=earnings_by_ticker.get(ticker, []),
+                weekly_sliced=weekly_sliced,
                 earnings_gate=earnings_gate,
             )
             if ctx is None:
                 continue
-
-            daily_sliced = full_daily[full_daily.index <= as_of_ts]
 
             result = fn(ticker, daily_sliced, ctx)
             if result is None:
@@ -225,11 +248,14 @@ def generate_signals(
             if result.suggested_stop is None or result.suggested_target is None:
                 continue
 
-            # Compute confidence
+            # Compute confidence — ATH from pre-computed series (no parquet read)
             try:
                 if regime_str is None:
                     regime_str = market_regime(sliced_market)
-                _, _, zone_label = ath_zone(ticker, result.close, end=d)
+                ath_s = ath_series_by_ticker.get(ticker)
+                raw_ath = ath_s.asof(as_of_ts) if ath_s is not None else None
+                ath_val = float(raw_ath) if raw_ath is not None and not pd.isna(raw_ath) else None
+                _, _, zone_label = _ath_zone_label(result.close, ath_val)
                 obstacles, _ = count_resistance_obstacles(
                     daily_sliced, result.close,
                     result.suggested_target,
