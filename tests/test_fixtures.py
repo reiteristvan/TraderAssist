@@ -1,6 +1,11 @@
 """E0.2 acceptance criteria: synthetic fixture factories behave as specified."""
-import pullback_filter as pf
-import breakout_filter as bf
+from datetime import date
+
+import pytest
+
+from scanner.core import QualityInfo, EvalContext
+import scanner.strategies.pullback as pb
+import scanner.strategies.breakout as br
 
 from tests.conftest import (
     make_pullback_setup,
@@ -13,33 +18,59 @@ from tests.conftest import (
 )
 
 
+def _make_ctx(df, market, quality, as_of_date="2026-06-15"):
+    from scanner.data_store import resample_weekly
+    as_of = date.fromisoformat(as_of_date)
+    return EvalContext(
+        as_of=as_of,
+        market_data=market,
+        weekly=resample_weekly(df),
+        quality=QualityInfo(**quality),
+        days_to_earnings=30,
+    )
+
+
 def test_pullback_setup_qualifies(monkeypatch):
     patch_pullback_external(monkeypatch)
-    res = pf._evaluate("SYN", make_pullback_setup(), make_quality(), make_market_data(), verbose=True)
+    df = make_pullback_setup()
+    market = make_market_data()
+    quality = make_quality()
+    ctx = _make_ctx(df, market, quality)
+    res = pb.evaluate("SYN", df, ctx, verbose=True)
     assert res.qualified is True
 
 
 def test_breakout_setup_qualifies():
-    res = bf._evaluate("SYN", make_breakout_setup(), make_quality())
+    df = make_breakout_setup()
+    market = make_market_data()
+    quality = make_quality()
+    ctx = _make_ctx(df, market, quality)
+    res = br.evaluate("SYN", df, ctx)
     assert res is not None
 
 
 def test_downtrend_fails_both(monkeypatch):
     patch_pullback_external(monkeypatch)
     df = make_downtrend()
-    pres = pf._evaluate("SYN", df, make_quality(), make_market_data(), verbose=False)
-    bres = bf._evaluate("SYN", df, make_quality())
+    market = make_market_data()
+    quality = make_quality()
+    ctx = _make_ctx(df, market, quality)
+    pres = pb.evaluate("SYN", df, ctx, verbose=False)
+    bres = br.evaluate("SYN", df, ctx)
     assert pres.qualified is False
-    assert bres is None
+    assert bres is not None and bres.qualified is False
 
 
 def test_choppy_fails_both(monkeypatch):
     patch_pullback_external(monkeypatch)
     df = make_choppy()
-    pres = pf._evaluate("SYN", df, make_quality(), make_market_data(), verbose=False)
-    bres = bf._evaluate("SYN", df, make_quality())
+    market = make_market_data()
+    quality = make_quality()
+    ctx = _make_ctx(df, market, quality)
+    pres = pb.evaluate("SYN", df, ctx, verbose=False)
+    bres = br.evaluate("SYN", df, ctx)
     assert pres.qualified is False
-    assert bres is None
+    assert bres is not None and bres.qualified is False
 
 
 def test_factories_deterministic():

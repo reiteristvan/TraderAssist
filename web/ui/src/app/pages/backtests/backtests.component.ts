@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { ApiService, Run, CoreMetrics, ScoreBucket, ConfBucket, GateAttrib } from '../../services/api.service';
+import { ApiService, Run, CoreMetrics, ScoreBucket, ConfBucket, GateAttrib, TradeRecord } from '../../services/api.service';
 
 @Component({
   selector: 'app-backtests',
@@ -51,6 +51,29 @@ export class BacktestsComponent implements OnInit {
 
   get gateAttribution(): GateAttrib[] {
     return this.selectedRun?.gate_attribution ?? [];
+  }
+
+  get trades(): TradeRecord[] {
+    return this.selectedRun?.trades ?? [];
+  }
+
+  formatReason(reason: string): string {
+    const map: Record<string, string> = {
+      target:        'Target hit',
+      stop:          'Stop hit',
+      time_stop:     'Time stop',
+      gap_skip_up:   'Gap skip ↑',
+      gap_skip_down: 'Gap skip ↓',
+    };
+    return map[reason] ?? reason;
+  }
+
+  reasonClass(reason: string): string {
+    if (reason === 'target')           return 'reason-target';
+    if (reason === 'stop')             return 'reason-stop';
+    if (reason === 'time_stop')        return 'reason-time';
+    if (reason === 'gap_skip_up' || reason === 'gap_skip_down') return 'reason-gap';
+    return '';
   }
 
   exitReasons(): { reason: string; count: number }[] {

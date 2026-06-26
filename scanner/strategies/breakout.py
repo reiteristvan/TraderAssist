@@ -71,16 +71,47 @@ class BreakoutResult:
 
 
 def evaluate(ticker: str, df: pd.DataFrame, ctx: EvalContext,
-             verbose: bool = False) -> BreakoutResult:
-    """Evaluate a breakout setup. Pure — no network I/O, no wall clock."""
+             verbose: bool = False, precomp=None) -> BreakoutResult:
+    """Evaluate a breakout setup. Pure — no network I/O, no wall clock.
+
+    When *precomp* (a PrecomputedBars instance) is supplied, rolling indicators
+    are resolved via O(log n) .asof() binary search instead of recomputing from
+    scratch on the sliced df — used by the backtest inner loop for speed.
+    """
     log = GateLog(ticker, verbose=verbose)
     close = float(df["Close"].iloc[-1])
+
+    # ── Resolve rolling indicators ─────────────────────────────────────────────
+    if precomp is not None:
+        _as_of = pd.Timestamp(ctx.as_of)
+        high_52w_val   = float(precomp.high_52w.asof(_as_of))
+        vol_sma50_val  = float(precomp.vol_sma50.asof(_as_of))
+        sma50          = float(precomp.sma50.asof(_as_of))
+        sma200         = float(precomp.sma200.asof(_as_of))
+        rsi            = float(precomp.rsi14.asof(_as_of))
+        adx            = float(precomp.adx14.asof(_as_of))
+        bb_width_now   = float(precomp.bb_width.asof(_as_of))
+        bb_threshold   = float(precomp.bb_threshold.asof(_as_of))
+        avg_dollar_vol = float(precomp.dollar_vol_sma50.asof(_as_of))
+    else:
+        high_52w_val   = float(df["High"].rolling(252, min_periods=200).max().iloc[-1])
+        vol_sma50_val  = float(df["Volume"].rolling(50).mean().iloc[-1])
+        sma50          = float(SMAIndicator(df["Close"], 50).sma_indicator().iloc[-1])
+        sma200         = float(SMAIndicator(df["Close"], 200).sma_indicator().iloc[-1])
+        rsi            = float(RSIIndicator(df["Close"], 14).rsi().iloc[-1])
+        adx            = float(ADXIndicator(df["High"], df["Low"], df["Close"], 14).adx().iloc[-1])
+        bb             = BollingerBands(df["Close"], 20, 2)
+        bb_width_s     = (bb.bollinger_hband() - bb.bollinger_lband()) / bb.bollinger_mavg()
+        bb_width_now   = float(bb_width_s.iloc[-1])
+        bb_threshold   = float(bb_width_s.iloc[-60:].quantile(BB_WIDTH_PCTILE))
+        avg_dollar_vol = float((df["Close"] * df["Volume"]).rolling(50).mean().iloc[-1])
+
+    vol_ratio = float(df["Volume"].iloc[-1] / vol_sma50_val) if vol_sma50_val else 0.0
+    pct_to_high = close / high_52w_val if high_52w_val else 0.0
 
     # ── Trend & momentum ───────────────────────────────────────────────────────
     log.section("Trend & momentum")
 
-    high_52w = df["High"].rolling(252, min_periods=200).max().iloc[-1]
-    pct_to_high = close / float(high_52w)
     log.gate("Near 52w high", pct_to_high >= NEAR_HIGH_PCT,
              f"{pct_to_high*100:.2f}% of 52w high")
 
@@ -88,38 +119,27 @@ def evaluate(ticker: str, df: pd.DataFrame, ctx: EvalContext,
     log.gate("Consolidation breakout", close >= consol_high,
              f"close ${close:.2f} vs consol high ${consol_high:.2f}")
 
-    vol_sma50 = df["Volume"].rolling(50).mean().iloc[-1]
-    vol_ratio = float(df["Volume"].iloc[-1] / vol_sma50) if vol_sma50 else 0.0
     log.gate("Volume confirmation", vol_ratio >= VOL_RATIO_MIN,
              f"{vol_ratio:.2f}x SMA50 volume (min {VOL_RATIO_MIN}x)")
 
-    sma50  = float(SMAIndicator(df["Close"], 50).sma_indicator().iloc[-1])
-    sma200 = float(SMAIndicator(df["Close"], 200).sma_indicator().iloc[-1])
     log.gate("Trend alignment", close > sma50 > sma200,
              f"close {close:.2f} > SMA50 {sma50:.2f} > SMA200 {sma200:.2f}")
 
-    rsi = float(RSIIndicator(df["Close"], 14).rsi().iloc[-1])
     log.gate("RSI in breakout range", RSI_RANGE[0] <= rsi <= RSI_RANGE[1],
              f"{rsi:.1f} (target {RSI_RANGE[0]}-{RSI_RANGE[1]})")
 
-    adx = float(ADXIndicator(df["High"], df["Low"], df["Close"], 14).adx().iloc[-1])
     log.gate("ADX trend strength", adx >= ADX_MIN,
              f"{adx:.1f} (min {ADX_MIN})")
 
     # ── Volatility ─────────────────────────────────────────────────────────────
     log.section("Volatility")
 
-    bb = BollingerBands(df["Close"], 20, 2)
-    bb_width_s = (bb.bollinger_hband() - bb.bollinger_lband()) / bb.bollinger_mavg()
-    bb_width_now = float(bb_width_s.iloc[-1])
-    bb_threshold = float(bb_width_s.iloc[-60:].quantile(BB_WIDTH_PCTILE))
     log.gate("BB squeeze", bb_width_now <= bb_threshold,
              f"width {bb_width_now:.4f} vs {BB_WIDTH_PCTILE*100:.0f}th pctile {bb_threshold:.4f}")
 
     # ── Filters ────────────────────────────────────────────────────────────────
     log.section("Filters")
 
-    avg_dollar_vol = float((df["Close"] * df["Volume"]).rolling(50).mean().iloc[-1])
     log.gate("Liquidity", avg_dollar_vol >= DOLLAR_VOL_MIN,
              f"${avg_dollar_vol/1e6:.1f}M avg daily $-vol")
 

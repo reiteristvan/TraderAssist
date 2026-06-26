@@ -28,6 +28,20 @@
 .attrib-table th, .attrib-table td { font-size: 12px; padding: 8px 10px; }
 .verdict-cell { font-size: 12px; color: #9090b0; max-width: 220px; }
 
+.trades-table th, .trades-table td { font-size: 12px; padding: 7px 10px; }
+.ticker-cell { font-weight: 600; font-family: monospace; }
+.date-cell { color: #9090b0; font-size: 11px; }
+.gap-skip-row td { opacity: 0.55; }
+
+.reason-badge {
+  display: inline-block; padding: 2px 7px; border-radius: 4px;
+  font-size: 11px; font-weight: 600;
+}
+.reason-target { background: #1a3a2a; color: #4caf89; }
+.reason-stop   { background: #3a1a1a; color: #c46060; }
+.reason-time   { background: #2a2a3a; color: #8090c0; }
+.reason-gap    { background: #2a2520; color: #907060; }
+
 .bias-box {
   background: #1a1a2a; border: 1px solid #2a2a4a; border-radius: 6px;
   padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: #8090a0;

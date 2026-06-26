@@ -206,6 +206,46 @@
         </table>
       </div>
 
+      <!-- Trade list -->
+      <div class="card" *ngIf="trades.length > 0">
+        <h2>All trades ({{ trades.length }})</h2>
+        <div style="overflow-x:auto;">
+          <table class="trades-table">
+            <thead>
+              <tr>
+                <th>Ticker</th>
+                <th>Opened</th>
+                <th>Closed</th>
+                <th>Reason</th>
+                <th class="num">Stop</th>
+                <th class="num">Target</th>
+                <th class="num">Exit price</th>
+                <th class="num">R</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let t of trades" [class.gap-skip-row]="t.exit_reason === 'gap_skip_up' || t.exit_reason === 'gap_skip_down'">
+                <td class="ticker-cell">{{ t.ticker }}</td>
+                <td class="date-cell">{{ t.entry_date ?? '—' }}</td>
+                <td class="date-cell">{{ t.exit_date ?? '—' }}</td>
+                <td>
+                  <span class="reason-badge" [ngClass]="reasonClass(t.exit_reason)">
+                    {{ formatReason(t.exit_reason) }}
+                  </span>
+                </td>
+                <td class="num">{{ t.stop != null ? (t.stop | number:'1.2-2') : '—' }}</td>
+                <td class="num">{{ t.target != null ? (t.target | number:'1.2-2') : '—' }}</td>
+                <td class="num">{{ t.exit_px != null ? (t.exit_px | number:'1.2-2') : '—' }}</td>
+                <td class="num" [class.positive]="(t.r_multiple ?? 0) > 0"
+                                [class.negative]="(t.r_multiple ?? 0) < 0">
+                  {{ t.r_multiple != null ? fmtR(t.r_multiple) : '—' }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- Bias disclosure -->
       <div class="bias-box" *ngIf="selectedRun.biases?.length">
         <strong>Known biases</strong>

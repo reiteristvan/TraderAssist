@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import warnings
 from datetime import date
 from typing import Callable, Iterable, Optional
 
@@ -14,6 +15,7 @@ import pandas as pd
 from scanner.core import (
     EvalContext,
     QualityInfo,
+    RS_LOOKBACK,
     WEEKLY_MA_PERIOD,
     _sma_slope,
     _macd_bullish,
@@ -24,6 +26,106 @@ from scanner.simulate import Signal
 _log = logging.getLogger("scanner.backtest")
 
 _MIN_DAILY_ROWS = 220
+
+# BB width percentile — must match breakout strategy constant
+_BB_WIDTH_PCTILE = 0.40
+
+
+# ── Pre-computed indicator cache (one instance per ticker, reused across all dates) ──
+
+@dataclasses.dataclass
+class PrecomputedBars:
+    """Rolling indicator Series pre-computed over the full ticker history.
+
+    Use .asof(ts) for O(log n) point-in-time lookups in the backtest inner loop.
+    """
+    sma20:            pd.Series  # SMA(20) of Close
+    sma50:            pd.Series  # SMA(50) of Close
+    sma50_prev:       pd.Series  # SMA(50).shift(20) — for "SMA50 rising" gate
+    sma200:           pd.Series  # SMA(200) of Close
+    high_52w:         pd.Series  # High.rolling(252, min_periods=200).max()
+    vol_sma50:        pd.Series  # Volume.rolling(50).mean()
+    dollar_vol_sma50: pd.Series  # (Close × Volume).rolling(50).mean()
+    rsi14:            pd.Series  # RSI(14)
+    adx14:            pd.Series  # ADX(14)
+    bb_width:         pd.Series  # Bollinger Band width series
+    bb_threshold:     pd.Series  # bb_width.rolling(60).quantile(BB_WIDTH_PCTILE)
+    rs_strength:      pd.Series  # Rolling RS ratio vs SPY (60-day)
+    rs_at_new_high:   pd.Series  # bool series — RS line at 60d high
+    sma_slope:        pd.Series  # SMA(50) slope % over 5 bars (for confidence)
+    macd_bullish:     pd.Series  # bool series — MACD hist > 0 (for confidence)
+
+
+def _precompute_bars(
+    full_daily: pd.DataFrame,
+    spy_full: Optional[pd.DataFrame],
+) -> PrecomputedBars:
+    """Compute all rolling indicator Series once over the full ticker history."""
+    from ta.momentum import RSIIndicator
+    from ta.trend import ADXIndicator, MACD, SMAIndicator
+    from ta.volatility import BollingerBands
+
+    warnings.filterwarnings("ignore", category=FutureWarning)
+    warnings.filterwarnings("ignore", category=UserWarning)
+
+    close  = full_daily["Close"]
+    high   = full_daily["High"]
+    low    = full_daily["Low"]
+    volume = full_daily["Volume"]
+
+    sma20  = SMAIndicator(close, 20).sma_indicator()
+    sma50  = SMAIndicator(close, 50).sma_indicator()
+    sma200 = SMAIndicator(close, 200).sma_indicator()
+
+    high_52w         = high.rolling(252, min_periods=200).max()
+    vol_sma50        = volume.rolling(50).mean()
+    dollar_vol_sma50 = (close * volume).rolling(50).mean()
+
+    rsi14 = RSIIndicator(close, 14).rsi()
+    adx14 = ADXIndicator(high, low, close, 14).adx()
+
+    bb = BollingerBands(close, 20, 2)
+    bb_width = (bb.bollinger_hband() - bb.bollinger_lband()) / bb.bollinger_mavg()
+    bb_threshold = bb_width.rolling(60).quantile(_BB_WIDTH_PCTILE)
+
+    # RS vs SPY — align on shared index, then reindex back to ticker's index
+    if spy_full is not None and len(spy_full) >= RS_LOOKBACK:
+        aligned = pd.DataFrame(
+            {"stock": close, "spy": spy_full["Close"]}
+        ).dropna()
+        rs_line       = aligned["stock"] / aligned["spy"]
+        rs_strength_a = rs_line / rs_line.shift(RS_LOOKBACK)
+        rs_at_high_a  = rs_line >= rs_line.rolling(RS_LOOKBACK).max() * 0.99
+        rs_strength   = rs_strength_a.reindex(close.index)
+        rs_at_new_high = rs_at_high_a.reindex(close.index).fillna(False)
+    else:
+        rs_strength    = pd.Series(1.0,  index=close.index, dtype=float)
+        rs_at_new_high = pd.Series(False, index=close.index, dtype=bool)
+
+    # SMA slope (% change over 5 bars) — mirrors _sma_slope() in core.py
+    sma_slope = ((sma50 - sma50.shift(5)) / sma50.shift(5) * 100).fillna(0.0)
+
+    # MACD bullish — histogram > 0
+    macd_obj      = MACD(close, window_slow=26, window_fast=12, window_sign=9)
+    macd_bullish  = (macd_obj.macd_diff() > 0).fillna(False)
+
+    return PrecomputedBars(
+        sma20            = sma20,
+        sma50            = sma50,
+        sma50_prev       = sma50.shift(20),
+        sma200           = sma200,
+        high_52w         = high_52w,
+        vol_sma50        = vol_sma50,
+        dollar_vol_sma50 = dollar_vol_sma50,
+        rsi14            = rsi14,
+        adx14            = adx14,
+        bb_width         = bb_width,
+        bb_threshold     = bb_threshold,
+        rs_strength      = rs_strength,
+        rs_at_new_high   = rs_at_new_high,
+        sma_slope        = sma_slope,
+        macd_bullish     = macd_bullish,
+    )
 
 
 # ── Internal context builder (no disk I/O inside the loop) ────────────────────
@@ -169,17 +271,25 @@ def generate_signals(
     for ticker in bars_by_ticker:
         earnings_by_ticker[ticker] = _earnings_loader(ticker)
 
-    # ── pre-compute per-ticker derived series (saves work inside the inner loop) ─
-    # weekly_by_ticker: resample once, then slice per date (vs resample per date)
-    # ath_series_by_ticker: expanding High max → O(log n) .asof() lookup per date
-    print(f"Pre-computing weekly bars and ATH series for {len(bars_by_ticker)} ticker(s)...")
-    weekly_by_ticker: dict[str, pd.DataFrame] = {}
-    ath_series_by_ticker: dict[str, pd.Series] = {}
+    # ── pre-compute per-ticker derived series ──────────────────────────────────
+    # Phase 1: weekly bars (eliminates resample_weekly() inside the loop)
+    # Phase 2: ATH expanding max (eliminates parquet reads inside the loop)
+    # Phase 3: rolling indicators (SMA/RSI/ADX/BB/RS — eliminates O(n) recomputation
+    #          every iteration; replaced by O(log n) .asof() binary search)
+    spy_full = full_market.get("SPY")
+    print(f"Pre-computing weekly bars, ATH series, and rolling indicators "
+          f"for {len(bars_by_ticker)} ticker(s)...")
+
+    weekly_by_ticker:  dict[str, pd.DataFrame]    = {}
+    ath_series_by_ticker: dict[str, pd.Series]    = {}
+    precomp_by_ticker: dict[str, PrecomputedBars] = {}
+
     for ticker, full_daily in bars_by_ticker.items():
         w = resample_weekly(full_daily)
         if w is not None:
             weekly_by_ticker[ticker] = w
         ath_series_by_ticker[ticker] = full_daily["High"].expanding().max()
+        precomp_by_ticker[ticker] = _precompute_bars(full_daily, spy_full)
 
     # ── derive trading days from SPY (or first available ticker) ──────────────
     spy_bars = bars_by_ticker.get("SPY") or next(iter(bars_by_ticker.values()))
@@ -230,7 +340,8 @@ def generate_signals(
             if ctx is None:
                 continue
 
-            result = fn(ticker, daily_sliced, ctx)
+            precomp_t = precomp_by_ticker.get(ticker)
+            result = fn(ticker, daily_sliced, ctx, precomp=precomp_t)
             if result is None:
                 continue
 
@@ -267,6 +378,15 @@ def generate_signals(
                 elif ctx.weekly is not None and len(ctx.weekly) >= 35:
                     wma = ctx.weekly["Close"].rolling(WEEKLY_MA_PERIOD).mean()
                     weekly_aligned = bool(ctx.weekly["Close"].iloc[-1] > wma.iloc[-1])
+
+                # Use pre-computed slope/MACD when available (avoids recomputing on sliced df)
+                if precomp_t is not None:
+                    slope_val   = float(precomp_t.sma_slope.asof(as_of_ts))
+                    macd_val    = bool(precomp_t.macd_bullish.asof(as_of_ts))
+                else:
+                    slope_val   = _sma_slope(daily_sliced)
+                    macd_val    = _macd_bullish(daily_sliced)
+
                 conf = compute_confidence(
                     score=result.score,
                     adx=result.adx,
@@ -274,8 +394,8 @@ def generate_signals(
                     market_regime_str=regime_str or "UNKNOWN",
                     obstacles=obstacles,
                     rr=result.risk_reward,
-                    sma_slope=_sma_slope(daily_sliced),
-                    macd_bullish=_macd_bullish(daily_sliced),
+                    sma_slope=slope_val,
+                    macd_bullish=macd_val,
                     ath_zone_label=zone_label,
                 )
                 result = dataclasses.replace(result, confidence=conf)

@@ -10,8 +10,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import pullback_filter as pf
-import breakout_filter as bf
+from scanner.core import SECTOR_ETF_MAP
 
 
 # ── E11.1 — block network in all tests ───────────────────────────────────────
@@ -158,7 +157,7 @@ def make_market_data(seed=2):
     spy_df = ohlcv_from_close(spy, np.full(idx_n, 5_000_000), seed=seed)
     xlk_df = ohlcv_from_close(xlk, np.full(idx_n, 3_000_000), seed=seed + 1)
     data = {"SPY": spy_df}
-    for etf in pf.SECTOR_ETF_MAP.values():
+    for etf in SECTOR_ETF_MAP.values():
         data[etf] = xlk_df if etf == "XLK" else spy_df
     return data
 
@@ -172,10 +171,5 @@ def make_quality(**overrides):
 
 
 def patch_pullback_external(monkeypatch):
-    """Stub out pullback_filter's network-backed earnings/weekly-trend
-    lookups so `_evaluate` can run fully offline against synthetic data."""
-    monkeypatch.setattr(pf, "_earnings_proximity", lambda t: 30)
-    monkeypatch.setattr(
-        pf, "_weekly_trend",
-        lambda t: {"weekly_above_30ma": True, "weekly_30ma_rising": True},
-    )
+    """No-op: legacy pullback_filter stubs are no longer needed."""
+    pass

@@ -65,6 +65,23 @@ export interface ConfBucket {
   verdict: string;
 }
 
+export interface TradeRecord {
+  ticker: string;
+  signal_date: string;
+  entry_date: string | null;
+  exit_date: string | null;
+  exit_reason: string;
+  stop: number | null;
+  target: number | null;
+  entry_px: number | null;
+  exit_px: number | null;
+  r_multiple: number | null;
+  holding_days: number | null;
+  strategy: string;
+  confidence: string | null;
+  score: number;
+}
+
 export interface GateAttrib {
   gate: string;
   n: number;
@@ -88,6 +105,7 @@ export interface Run {
   gate_attribution?: GateAttrib[] | null;
   monthly_signals?: Record<string, number> | null;
   biases?: string[] | null;
+  trades?: TradeRecord[] | null;
 }
 
 export interface SummaryStats {

@@ -97,25 +97,52 @@ class PullbackResult:
 
 
 def evaluate(ticker: str, df: pd.DataFrame, ctx: EvalContext,
-             verbose: bool = False) -> PullbackResult:
-    """Evaluate a pullback setup. Pure — no network I/O, no wall clock."""
+             verbose: bool = False, precomp=None) -> PullbackResult:
+    """Evaluate a pullback setup. Pure — no network I/O, no wall clock.
+
+    When *precomp* (a PrecomputedBars instance) is supplied, rolling indicators
+    are resolved via O(log n) .asof() binary search instead of recomputing from
+    scratch on the sliced df — used by the backtest inner loop for speed.
+    """
     log = GateLog(ticker, verbose=verbose)
     close = float(df["Close"].iloc[-1])
+
+    # ── Resolve rolling indicators ─────────────────────────────────────────────
+    if precomp is not None:
+        _as_of = pd.Timestamp(ctx.as_of)
+        sma50          = float(precomp.sma50.asof(_as_of))
+        sma50_prev     = float(precomp.sma50_prev.asof(_as_of))
+        sma200         = float(precomp.sma200.asof(_as_of))
+        sma20_val      = float(precomp.sma20.asof(_as_of))
+        high_52w       = float(precomp.high_52w.asof(_as_of))
+        rsi            = float(precomp.rsi14.asof(_as_of))
+        adx            = float(precomp.adx14.asof(_as_of))
+        avg_dollar_vol = float(precomp.dollar_vol_sma50.asof(_as_of))
+        rs             = {
+            "rs_strength":    float(precomp.rs_strength.asof(_as_of)),
+            "rs_at_new_high": bool(precomp.rs_at_new_high.asof(_as_of)),
+        }
+    else:
+        sma50_s        = SMAIndicator(df["Close"], 50).sma_indicator()
+        sma200_s       = SMAIndicator(df["Close"], 200).sma_indicator()
+        sma50          = float(sma50_s.iloc[-1])
+        sma200         = float(sma200_s.iloc[-1])
+        sma50_prev     = float(sma50_s.iloc[-20])
+        sma20_val      = float(SMAIndicator(df["Close"], 20).sma_indicator().iloc[-1])
+        high_52w       = float(df["High"].rolling(252, min_periods=200).max().iloc[-1])
+        rsi            = float(RSIIndicator(df["Close"], 14).rsi().iloc[-1])
+        adx            = float(ADXIndicator(df["High"], df["Low"], df["Close"], 14).adx().iloc[-1])
+        avg_dollar_vol = float((df["Close"] * df["Volume"]).rolling(50).mean().iloc[-1])
+        rs             = _rs_metrics(df, ctx.market_data.get("SPY"))
 
     # ── Trend context ──────────────────────────────────────────────────────────
     log.section("Trend context")
 
-    sma50_s  = SMAIndicator(df["Close"], 50).sma_indicator()
-    sma200_s = SMAIndicator(df["Close"], 200).sma_indicator()
-    sma50    = float(sma50_s.iloc[-1])
-    sma200   = float(sma200_s.iloc[-1])
-
     log.gate("Uptrend (SMA50 > SMA200)", sma50 > sma200,
              f"${sma50:.2f} vs ${sma200:.2f}")
     log.gate("SMA50 rising (20 sessions)",
-             bool(sma50_s.iloc[-1] > sma50_s.iloc[-20]))
+             bool(sma50 > sma50_prev))
 
-    high_52w = float(df["High"].rolling(252, min_periods=200).max().iloc[-1])
     near_high_recently = bool(
         (df["High"].iloc[-TREND_LOOKBACK_HIGH:] >= 0.98 * high_52w).any()
     )
@@ -179,11 +206,10 @@ def evaluate(ticker: str, df: pd.DataFrame, ctx: EvalContext,
         vol_contraction = float("nan")
         log.gate("Volume contraction", False, "insufficient window data")
 
-    sma20 = SMAIndicator(df["Close"], 20).sma_indicator()
     fib_anchor = prior_swing_low if pd.notna(prior_swing_low) else swing_high * 0.92
     fib_range = swing_high - fib_anchor
     candidates = {
-        "SMA20":  float(sma20.iloc[-1]),
+        "SMA20":  sma20_val,
         "SMA50":  sma50,
         "fib_38": swing_high - 0.382 * fib_range,
         "fib_50": swing_high - 0.500 * fib_range,
@@ -216,11 +242,9 @@ def evaluate(ticker: str, df: pd.DataFrame, ctx: EvalContext,
     # ── Momentum ───────────────────────────────────────────────────────────────
     log.section("Momentum")
 
-    rsi = float(RSIIndicator(df["Close"], 14).rsi().iloc[-1])
     log.gate("RSI(14) reset", RSI_PULLBACK_RANGE[0] <= rsi <= RSI_PULLBACK_RANGE[1],
              f"{rsi:.1f} — target {RSI_PULLBACK_RANGE[0]}-{RSI_PULLBACK_RANGE[1]}")
 
-    adx = float(ADXIndicator(df["High"], df["Low"], df["Close"], 14).adx().iloc[-1])
     log.gate("ADX(14) trend strength", adx >= ADX_MIN_TREND,
              f"{adx:.1f} — min {ADX_MIN_TREND}")
 
@@ -234,8 +258,6 @@ def evaluate(ticker: str, df: pd.DataFrame, ctx: EvalContext,
         log.gate("Earnings clear", ctx.days_to_earnings > EARNINGS_BUFFER_DAYS,
                  f"{ctx.days_to_earnings}d away")
 
-    spy_df = ctx.market_data.get("SPY")
-    rs = _rs_metrics(df, spy_df)
     log.gate("Relative strength vs SPY", rs["rs_strength"] >= RS_MIN,
              f"60d RS={rs['rs_strength']:.2f}"
              f"{', at new high' if rs['rs_at_new_high'] else ''}")
@@ -273,7 +295,6 @@ def evaluate(ticker: str, df: pd.DataFrame, ctx: EvalContext,
         log.gate("Weekly above 30-MA", weekly_above_30ma,
                  f"30MA rising={weekly_30ma_rising}")
 
-    avg_dollar_vol = float((df["Close"] * df["Volume"]).rolling(50).mean().iloc[-1])
     log.gate("Liquidity", avg_dollar_vol >= DOLLAR_VOL_MIN,
              f"${avg_dollar_vol/1e6:.1f}M avg daily $-vol")
 

@@ -354,6 +354,32 @@ def render_report(
 
     md = "\n".join(lines)
 
+    # ── Trade list ────────────────────────────────────────────────────────────
+    # Map (signal_date_str, ticker) → Signal so each Trade can pull stop/target
+    sig_by_key = {(str(s.date), s.ticker): s for s in signals}
+    trades_list = []
+    for t in qualified_trades:
+        if t.exit_reason == "incomplete":
+            continue
+        sig = sig_by_key.get((str(t.signal_date), t.ticker))
+        trades_list.append({
+            "ticker":       t.ticker,
+            "signal_date":  str(t.signal_date),
+            "entry_date":   str(t.entry_date)  if t.entry_date  else None,
+            "exit_date":    str(t.exit_date)   if t.exit_date   else None,
+            "exit_reason":  t.exit_reason,
+            "stop":         sig.stop   if sig else None,
+            "target":       sig.target if sig else None,
+            "entry_px":     t.entry_px,
+            "exit_px":      t.exit_px,
+            "r_multiple":   round(t.r_multiple, 3) if t.r_multiple is not None else None,
+            "holding_days": t.holding_days,
+            "strategy":     t.strategy,
+            "confidence":   t.confidence,
+            "score":        t.score,
+        })
+    trades_list.sort(key=lambda x: x.get("entry_date") or x.get("signal_date") or "")
+
     # ── JSON ──────────────────────────────────────────────────────────────────
     json_out = {
         "metrics": metrics,
@@ -363,6 +389,7 @@ def render_report(
         "gate_attribution": attribution,
         "biases": [_BIAS_SURVIVORSHIP, _BIAS_LOOK_AHEAD],
         "run_meta": run_meta or {},
+        "trades": trades_list,
     }
 
     return md, json_out
