@@ -315,7 +315,13 @@ def cmd_backtest(args) -> None:
     (out_dir / "report.md").write_text(md, encoding="utf-8")
     (out_dir / "report.json").write_text(json.dumps(json_data, indent=2, default=str))
 
-    print(f"  Trades simulated: {len(q_trades)} qualified, {len(nm_trades)} near-miss")
+    q_resolved = sum(1 for t in q_trades if t.r_multiple is not None)
+    q_excluded = len(q_trades) - q_resolved
+    nm_resolved = sum(1 for t in nm_trades if t.r_multiple is not None)
+    nm_excluded = len(nm_trades) - nm_resolved
+    q_note = f" ({q_resolved} resolved, {q_excluded} gap-skip/incomplete)" if q_excluded else f" ({q_resolved} resolved)"
+    nm_note = f" ({nm_resolved} resolved, {nm_excluded} gap-skip/incomplete)" if nm_excluded else ""
+    print(f"  Trades simulated: {len(q_trades)} qualified{q_note}, {len(nm_trades)} near-miss{nm_note}")
     print(f"  Output → {out_dir}/")
     print("    signals.parquet  trades.parquet  report.md  report.json  run_meta.json")
 
