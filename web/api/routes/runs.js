@@ -49,9 +49,10 @@ router.get('/runs/:run_id', (req, res) => {
         result.gate_attribution   = reportData.gate_attribution   || [];
         result.monthly_signals    = reportData.monthly_signals    || {};
         result.trades             = reportData.trades             || [];
-        result.failure_analysis   = reportData.failure_analysis   || null;
-        result.target_r_buckets   = reportData.target_r_buckets   || [];
-        result.target_atr_buckets = reportData.target_atr_buckets || [];
+        result.failure_analysis   = reportData.failure_analysis    || null;
+        result.stop_out_forensics = reportData.stop_out_forensics  || null;
+        result.target_r_buckets   = reportData.target_r_buckets    || [];
+        result.target_atr_buckets = reportData.target_atr_buckets  || [];
       } else {
         result.metrics = reportData;
       }

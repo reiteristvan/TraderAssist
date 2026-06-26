@@ -75,11 +75,11 @@ def test_migrate_idempotent(tmp_path):
     conn = store_db.get_connection(path)
     ver = store_db.get_schema_version(conn)
     conn.close()
-    assert ver == 7
+    assert ver == 8
 
 
 def test_migrate_schema_version_present(db):
-    assert store_db.get_schema_version(db) == 7
+    assert store_db.get_schema_version(db) == 8
 
 
 # ── E9.1 AC3 — round-trip signal ─────────────────────────────────────────────
@@ -253,7 +253,7 @@ def test_migrate_v1_to_current(tmp_path):
     # migrate() should upgrade to current version
     store_db.migrate(db_path=path)
     conn2 = store_db.get_connection(path)
-    assert store_db.get_schema_version(conn2) == 7
+    assert store_db.get_schema_version(conn2) == 8
     # Columns added in v2/v3 must exist
     cols = [r[1] for r in conn2.execute("PRAGMA table_info(signals)").fetchall()]
     assert "gate_detail_json" in cols
@@ -263,6 +263,11 @@ def test_migrate_v1_to_current(tmp_path):
     # target_r/target_atr added in v7 must exist
     assert "target_r" in cols
     assert "target_atr" in cols
+    # mae_r/mfe_r/post_stop_* added in v8 must exist
+    assert "mae_r" in cols
+    assert "mfe_r" in cols
+    assert "post_stop_reached_target" in cols
+    assert "post_stop_mfe_r" in cols
     # bars table added in v5 must exist
     tables = [r[0] for r in conn2.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
     assert "bars" in tables
@@ -367,6 +372,51 @@ def test_target_r_atr_round_trip(db):
     updated = db.execute("SELECT * FROM signals WHERE id = ?", (row["id"],)).fetchone()
     assert float(updated["target_r"])   == pytest.approx(2.5)
     assert float(updated["target_atr"]) == pytest.approx(6.67)
+
+
+def test_mae_mfe_round_trip(db):
+    """mae_r, mfe_r, post_stop_reached_target, post_stop_mfe_r persisted and readable."""
+    store_db.insert_signal(db, _sample_signal(ticker="MAE"))
+    row = db.execute("SELECT id FROM signals WHERE ticker='MAE'").fetchone()
+    outcome = {
+        "outcome_checked_at": "2026-06-26T12:00:00",
+        "entry_px": 100.0,
+        "exit_px": 90.0,
+        "exit_reason": "stop",
+        "r_multiple": -1.0,
+        "holding_days": 3,
+        "flags": json.dumps({}),
+        "target_r": 2.0,
+        "target_atr": 5.0,
+        "mae_r": -1.1,
+        "mfe_r": 0.3,
+        "post_stop_reached_target": 1,
+        "post_stop_mfe_r": 1.5,
+    }
+    store_db.update_signal_outcome(db, row["id"], outcome)
+
+    updated = db.execute("SELECT * FROM signals WHERE ticker='MAE'").fetchone()
+    assert float(updated["mae_r"])             == pytest.approx(-1.1)
+    assert float(updated["mfe_r"])             == pytest.approx(0.3)
+    assert updated["post_stop_reached_target"] == 1
+    assert float(updated["post_stop_mfe_r"])   == pytest.approx(1.5)
+
+
+def test_mae_mfe_default_null(db):
+    """update_signal_outcome without mae/mfe fields writes NULL."""
+    store_db.insert_signal(db, _sample_signal(ticker="NULL"))
+    row = db.execute("SELECT id FROM signals WHERE ticker='NULL'").fetchone()
+    store_db.update_signal_outcome(db, row["id"], {
+        "outcome_checked_at": "2026-06-26",
+        "entry_px": 100.0, "exit_px": 110.0,
+        "exit_reason": "target", "r_multiple": 1.0,
+        "holding_days": 5, "flags": "{}",
+    })
+    updated = db.execute("SELECT * FROM signals WHERE ticker='NULL'").fetchone()
+    assert updated["mae_r"]                    is None
+    assert updated["mfe_r"]                    is None
+    assert updated["post_stop_reached_target"] is None
+    assert updated["post_stop_mfe_r"]          is None
 
 
 def test_target_r_defaults_null(db):

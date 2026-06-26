@@ -275,6 +275,127 @@ def test_multiple_signals():
     assert reasons["B"] == "stop"
 
 
+# ── E14.1 — MAE / MFE / post-stop excursion ──────────────────────────────────
+
+def test_mae_mfe_clean_target_hit():
+    """MAE and MFE are correct for a clean target-hit trade."""
+    sig = _signal(sig_date=date(2026, 1, 2), stop=90.0, target=110.0)
+    # entry bar: low=99, high=101; exit bar: low=99, high=111 → target
+    bars = _bars(
+        [date(2026, 1, 2), date(2026, 1, 5), date(2026, 1, 6)],
+        opens  =[100.0, 100.0, 100.0],
+        highs  =[100.5, 101.0, 111.0],
+        lows   =[99.5,   99.0,  99.0],
+        closes =[100.0, 100.5, 110.0],
+    )
+    [trade] = simulate_trades([sig], _provider({"TEST": bars}))
+
+    # mae_r = (min_low 99 − entry 100) / risk 10 = −0.1
+    # mfe_r = (max_high 111 − entry 100) / risk 10 = 1.1
+    assert trade.mae_r == pytest.approx(-0.1)
+    assert trade.mfe_r == pytest.approx(1.1)
+    assert trade.post_stop_reached_target is None
+    assert trade.post_stop_mfe_r is None
+
+
+def test_mae_mfe_clean_stop_hit_no_post_bars():
+    """Stop-out with no subsequent bars → post_stop False/0.0."""
+    sig = _signal(sig_date=date(2026, 1, 2), stop=90.0, target=110.0)
+    # entry bar: low=99; exit bar: low=89 → stop (no more bars)
+    bars = _bars(
+        [date(2026, 1, 2), date(2026, 1, 5), date(2026, 1, 6)],
+        opens  =[100.0, 100.0, 100.0],
+        highs  =[100.5, 101.0, 100.0],
+        lows   =[99.5,   99.0,  89.0],
+        closes =[100.0, 100.5,  89.5],
+    )
+    [trade] = simulate_trades([sig], _provider({"TEST": bars}))
+
+    assert trade.exit_reason == "stop"
+    assert trade.mae_r == pytest.approx(-1.1)   # (89 − 100) / 10
+    assert trade.mfe_r == pytest.approx(0.1)    # (101 − 100) / 10
+    assert trade.post_stop_reached_target is False
+    assert trade.post_stop_mfe_r == pytest.approx(0.0)
+
+
+def test_post_stop_reaches_target():
+    """Stop fires at bar 2; bar 3 rallies to target → post_stop_reached_target=True."""
+    sig = _signal(sig_date=date(2026, 1, 2), stop=90.0, target=110.0)
+    bars = _bars(
+        [date(2026, 1, 2), date(2026, 1, 5), date(2026, 1, 6), date(2026, 1, 7)],
+        opens  =[100.0, 100.0, 100.0, 100.0],
+        highs  =[100.5, 101.0, 100.0, 115.0],  # bar 3: high=115 ≥ target=110
+        lows   =[99.5,   95.0,  89.0,  95.0],  # bar 2: low=89 ≤ stop=90
+        closes =[100.0, 100.0,  89.5, 110.0],
+    )
+    [trade] = simulate_trades([sig], _provider({"TEST": bars}), time_stop=10)
+
+    assert trade.exit_reason == "stop"
+    assert trade.r_multiple == pytest.approx(-1.0)   # exit at stop=90, risk=10
+    assert trade.post_stop_reached_target is True
+    # post_stop_mfe_r = (115 − 100) / 10 = 1.5
+    assert trade.post_stop_mfe_r == pytest.approx(1.5)
+    # MAE covers entry bar + stop bar; stop bar low=89
+    assert trade.mae_r == pytest.approx(-1.1)   # (89 − 100) / 10
+    assert trade.mfe_r == pytest.approx(0.1)    # (101 − 100) / 10
+
+
+def test_post_stop_keeps_falling():
+    """Stop fires at bar 2; subsequent bars stay below target → False."""
+    sig = _signal(sig_date=date(2026, 1, 2), stop=90.0, target=110.0)
+    bars = _bars(
+        [date(2026, 1, 2), date(2026, 1, 5), date(2026, 1, 6), date(2026, 1, 7)],
+        opens  =[100.0, 100.0, 100.0,  85.0],
+        highs  =[100.5, 101.0, 100.0,  88.0],  # bar 3: high=88 < target=110
+        lows   =[99.5,   95.0,  89.0,  83.0],
+        closes =[100.0, 100.0,  89.5,  84.0],
+    )
+    [trade] = simulate_trades([sig], _provider({"TEST": bars}), time_stop=10)
+
+    assert trade.exit_reason == "stop"
+    assert trade.post_stop_reached_target is False
+    # post_stop_mfe_r = (88 − 100) / 10 = −1.2
+    assert trade.post_stop_mfe_r == pytest.approx(-1.2)
+
+
+def test_gap_skip_has_no_mae_mfe():
+    """Gap-skip trades have all excursion fields as None."""
+    sig = _signal(sig_date=date(2026, 1, 2), stop=90.0, target=110.0)
+    bars = _bars(
+        [date(2026, 1, 2), date(2026, 1, 5)],
+        opens  =[100.0, 111.0],
+        highs  =[100.5, 112.0],
+        lows   =[99.5,  110.0],
+        closes =[100.0, 111.0],
+    )
+    [trade] = simulate_trades([sig], _provider({"TEST": bars}))
+
+    assert trade.exit_reason == "gap_skip_up"
+    assert trade.mae_r is None
+    assert trade.mfe_r is None
+    assert trade.post_stop_reached_target is None
+    assert trade.post_stop_mfe_r is None
+
+
+def test_e7_golden_fixtures_unchanged():
+    """E7.1 golden exit outcomes are not altered by E14.1 instrumentation."""
+    # Reuses clean_target_hit scenario — only checks original fields
+    sig = _signal(sig_date=date(2026, 1, 2), stop=90.0, target=110.0)
+    bars = _bars(
+        [date(2026, 1, 2), date(2026, 1, 5), date(2026, 1, 6)],
+        opens  =[100.0, 100.0, 100.0],
+        highs  =[100.5, 101.0, 111.0],
+        lows   =[99.5,   99.0,  99.0],
+        closes =[100.0, 100.5, 110.0],
+    )
+    [trade] = simulate_trades([sig], _provider({"TEST": bars}))
+
+    assert trade.exit_reason == "target"
+    assert trade.exit_px    == pytest.approx(110.0)
+    assert trade.entry_px   == pytest.approx(100.0)
+    assert trade.r_multiple == pytest.approx(1.0)
+
+
 # ── E13.1 — target_r and target_atr fields ───────────────────────────────────
 
 def test_target_r_and_atr_on_normal_trade():

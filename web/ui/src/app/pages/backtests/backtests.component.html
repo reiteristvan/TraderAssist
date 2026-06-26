@@ -226,6 +226,47 @@
         <p class="failure-interp">{{ failureAnalysis.interpretation }}</p>
       </div>
 
+      <!-- Stop-out forensics -->
+      <div class="card" *ngIf="stopOutForensics && stopOutForensics.n_stop_outs > 0">
+        <h2>Stop-out forensics</h2>
+        <p class="section-desc">
+          Post-stop shadow simulation — of trades that stopped out, how many would have
+          reached the target if the stop had not been there?
+        </p>
+        <div class="forensics-grid">
+          <div class="forensics-stat">
+            <div class="forensics-value">{{ stopOutForensics.n_stop_outs }}</div>
+            <div class="forensics-label">Stop-outs</div>
+          </div>
+          <div class="forensics-stat" *ngIf="stopOutForensics.pct_reached_target != null">
+            <div class="forensics-value"
+                 [class.positive]="stopOutForensics.pct_reached_target > 0.35"
+                 [class.negative]="stopOutForensics.pct_reached_target <= 0.35">
+              {{ fmt(stopOutForensics.pct_reached_target) }}
+            </div>
+            <div class="forensics-label">Reached target post-stop</div>
+          </div>
+          <div class="forensics-stat" *ngIf="stopOutForensics.median_post_stop_mfe_r != null">
+            <div class="forensics-value"
+                 [class.positive]="stopOutForensics.median_post_stop_mfe_r > 0"
+                 [class.negative]="stopOutForensics.median_post_stop_mfe_r < 0">
+              {{ fmtR(stopOutForensics.median_post_stop_mfe_r) }}
+            </div>
+            <div class="forensics-label">Median post-stop MFE</div>
+          </div>
+          <div class="forensics-stat" *ngIf="stopOutForensics.winners_mae_near_minus1_pct != null">
+            <div class="forensics-value">{{ fmt(stopOutForensics.winners_mae_near_minus1_pct) }}</div>
+            <div class="forensics-label">Winners' MAE near −1R</div>
+          </div>
+        </div>
+        <div class="forensics-branch" *ngIf="stopOutForensics.branch != null">
+          <span class="branch-badge" [ngClass]="branchClass(stopOutForensics.branch)">
+            Branch {{ stopOutForensics.branch }}
+          </span>
+        </div>
+        <p class="forensics-interp">{{ stopOutForensics.interpretation }}</p>
+      </div>
+
       <!-- Target distance — by R -->
       <div class="card" *ngIf="hasTargetRData">
         <h2>Target distance — by R-multiple</h2>

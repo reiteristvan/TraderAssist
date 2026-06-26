@@ -291,6 +291,82 @@ def bucket_by_target_atr(trades: list[Trade]) -> list[dict]:
     return result
 
 
+# ── E14.1 — Stop-out forensics ───────────────────────────────────────────────
+
+def stop_out_forensics(trades: list[Trade]) -> dict:
+    """MAE/MFE distribution and post-stop path analysis for stop-outs.
+
+    Branch A (stops too tight): high % of stop-outs that later reach target
+    AND winners clustered near −1R MAE → stops sit at the noise boundary.
+    Branch B (setup lacks edge): stopped trades keep falling; low reach rate.
+    """
+    active = _active_trades(trades)
+    stop_outs = [t for t in active if t.exit_reason == "stop"]
+    winners   = [t for t in active if t.r_multiple > 0]
+
+    n_stop_outs = len(stop_outs)
+
+    if n_stop_outs == 0:
+        return {
+            "n_stop_outs": 0,
+            "pct_reached_target": None,
+            "median_post_stop_mfe_r": None,
+            "winners_mae_near_minus1_pct": None,
+            "branch": None,
+            "interpretation": "No stop-out trades to analyze.",
+        }
+
+    # Post-stop reach rate (trades with the field populated)
+    with_post = [t for t in stop_outs if t.post_stop_reached_target is not None]
+    n_reached = sum(1 for t in with_post if t.post_stop_reached_target)
+    pct_reached = n_reached / len(with_post) if with_post else None
+
+    # Median post-stop MFE
+    post_mfes = sorted(t.post_stop_mfe_r for t in stop_outs if t.post_stop_mfe_r is not None)
+    median_post_mfe = post_mfes[len(post_mfes) // 2] if post_mfes else None
+
+    # Winners whose MAE came within 0.25R of the stop (mae_r ≤ −0.75)
+    winners_with_mae = [t for t in winners if t.mae_r is not None]
+    n_near = sum(1 for t in winners_with_mae if t.mae_r <= -0.75)
+    near_minus1_pct = n_near / len(winners_with_mae) if winners_with_mae else None
+
+    # Branch determination
+    if pct_reached is not None and near_minus1_pct is not None:
+        if pct_reached > 0.35 and near_minus1_pct > 0.30:
+            branch = "A"
+            mfe_str = f"{median_post_mfe:+.2f}R" if median_post_mfe is not None else "unknown"
+            interpretation = (
+                f"{pct_reached:.0%} of stopped trades subsequently reached target "
+                f"(post-stop MFE median {mfe_str}) and {near_minus1_pct:.0%} of winners "
+                "had MAE within 0.25R of the stop — consistent with stops sitting at "
+                "the noise boundary (Branch A: stops too tight → consider widening)."
+            )
+        else:
+            branch = "B"
+            mfe_str = f"{median_post_mfe:+.2f}R" if median_post_mfe is not None else "unknown"
+            interpretation = (
+                f"{pct_reached:.0%} of stopped trades subsequently reached target "
+                f"(post-stop MFE median {mfe_str}) — stopped trades continued lower, "
+                "consistent with genuine breakdown (Branch B: setups may lack edge at "
+                "the current stop level → evaluate entry quality via E14.3/E14.4)."
+            )
+    else:
+        branch = None
+        interpretation = (
+            "Insufficient data — run a backtest with re-simulated trades to populate "
+            "MAE/MFE fields."
+        )
+
+    return {
+        "n_stop_outs": n_stop_outs,
+        "pct_reached_target": pct_reached,
+        "median_post_stop_mfe_r": median_post_mfe,
+        "winners_mae_near_minus1_pct": near_minus1_pct,
+        "branch": branch,
+        "interpretation": interpretation,
+    }
+
+
 # ── Monthly signal count helper ───────────────────────────────────────────────
 
 def _monthly_signal_counts(signals: list[Signal]) -> dict[str, int]:
@@ -420,6 +496,26 @@ def render_report(
             lines.append(f"| Other | {fa['other']} | {fa['other']/fa['total_non_winners']:.0%} |")
         lines.append(f"\n*{fa['interpretation']}*\n")
 
+    # E14.1 — stop-out forensics
+    sof = stop_out_forensics(qualified_trades)
+    if sof["n_stop_outs"] > 0:
+        lines += ["\n## Stop-out Forensics\n"]
+        lines += [
+            f"| Metric | Value |",
+            f"|--------|-------|",
+            f"| Stop-outs | {sof['n_stop_outs']} |",
+        ]
+        if sof["pct_reached_target"] is not None:
+            lines.append(f"| % reached target post-stop | {sof['pct_reached_target']:.0%} |")
+        if sof["median_post_stop_mfe_r"] is not None:
+            lines.append(f"| Median post-stop MFE | {sof['median_post_stop_mfe_r']:+.2f}R |")
+        if sof["winners_mae_near_minus1_pct"] is not None:
+            lines.append(f"| Winners' MAE near −1R (≤ −0.75) | {sof['winners_mae_near_minus1_pct']:.0%} |")
+        branch_label = f"Branch {sof['branch']}" if sof["branch"] else "Undetermined"
+        lines += [
+            f"\n**{branch_label}** — {sof['interpretation']}\n",
+        ]
+
     # E13.1 — target distance
     tr_buckets = bucket_by_target_r(qualified_trades)
     ta_buckets = bucket_by_target_atr(qualified_trades)
@@ -512,6 +608,7 @@ def render_report(
         "monthly_signals": monthly,
         "gate_attribution": attribution,
         "failure_analysis": fa,
+        "stop_out_forensics": sof,
         "target_r_buckets": tr_buckets,
         "target_atr_buckets": ta_buckets,
         "biases": [_BIAS_SURVIVORSHIP, _BIAS_LOOK_AHEAD],

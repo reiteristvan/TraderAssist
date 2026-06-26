@@ -196,6 +196,13 @@ def resolve_open_signals(
                 "flags": json.dumps(trade.flags),
                 "target_r": trade.target_r,
                 "target_atr": trade.target_atr,
+                "mae_r": trade.mae_r,
+                "mfe_r": trade.mfe_r,
+                "post_stop_reached_target": (
+                    None if trade.post_stop_reached_target is None
+                    else int(trade.post_stop_reached_target)
+                ),
+                "post_stop_mfe_r": trade.post_stop_mfe_r,
             }
             store_db.update_signal_outcome(conn, row["id"], outcome)
             resolved += 1
@@ -317,6 +324,13 @@ def write_backtest_to_db(
                     "flags": json.dumps(trade.flags),
                     "target_r": trade.target_r,
                     "target_atr": trade.target_atr,
+                    "mae_r": trade.mae_r,
+                    "mfe_r": trade.mfe_r,
+                    "post_stop_reached_target": (
+                        None if trade.post_stop_reached_target is None
+                        else int(trade.post_stop_reached_target)
+                    ),
+                    "post_stop_mfe_r": trade.post_stop_mfe_r,
                 })
 
     store_db.insert_backtest_report(conn, run_id, metrics, biases)

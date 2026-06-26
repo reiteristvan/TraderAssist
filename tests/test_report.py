@@ -25,6 +25,7 @@ from scanner.report import (
     failure_analysis,
     bucket_by_target_r,
     bucket_by_target_atr,
+    stop_out_forensics,
 )
 
 
@@ -42,6 +43,10 @@ def _trade(
     flags: dict | None = None,
     target_r: float | None = None,
     target_atr: float | None = None,
+    mae_r: float | None = None,
+    mfe_r: float | None = None,
+    post_stop_reached_target: bool | None = None,
+    post_stop_mfe_r: float | None = None,
 ) -> Trade:
     return Trade(
         ticker="TEST",
@@ -61,6 +66,10 @@ def _trade(
         flags=flags or {},
         target_r=target_r,
         target_atr=target_atr,
+        mae_r=mae_r,
+        mfe_r=mfe_r,
+        post_stop_reached_target=post_stop_reached_target,
+        post_stop_mfe_r=post_stop_mfe_r,
     )
 
 
@@ -385,3 +394,68 @@ def test_render_report_has_failure_and_bucket_keys():
     assert "failure_analysis" in json_data
     assert "target_r_buckets" in json_data
     assert "target_atr_buckets" in json_data
+
+
+# ── E14.1 — stop_out_forensics ────────────────────────────────────────────────
+
+def test_stop_out_forensics_branch_a():
+    """High reach rate + winners' MAE near −1 → Branch A."""
+    # 40 stop-outs: 50% reach target post-stop
+    stop_outs = (
+        [_trade(-1.0, exit_reason="stop",
+                post_stop_reached_target=True, post_stop_mfe_r=1.5)] * 20
+        + [_trade(-1.0, exit_reason="stop",
+                  post_stop_reached_target=False, post_stop_mfe_r=-0.5)] * 20
+    )
+    # 20 winners: 40% had MAE within 0.25R of stop (mae_r ≤ −0.75)
+    winners = [_trade(+1.5, mae_r=-0.9)] * 8 + [_trade(+2.0, mae_r=-0.2)] * 12
+
+    fo = stop_out_forensics(stop_outs + winners)
+
+    assert fo["n_stop_outs"] == 40
+    assert fo["pct_reached_target"] == pytest.approx(0.5)
+    assert fo["winners_mae_near_minus1_pct"] == pytest.approx(8 / 20)
+    assert fo["branch"] == "A"
+    assert "Branch A" in fo["interpretation"] or "stops too tight" in fo["interpretation"]
+
+
+def test_stop_out_forensics_branch_b():
+    """Low reach rate → Branch B."""
+    stop_outs = (
+        [_trade(-1.0, exit_reason="stop",
+                post_stop_reached_target=True, post_stop_mfe_r=1.2)] * 4
+        + [_trade(-1.0, exit_reason="stop",
+                  post_stop_reached_target=False, post_stop_mfe_r=-0.8)] * 36
+    )
+    winners = [_trade(+1.5, mae_r=-0.3)] * 20  # none near −1
+
+    fo = stop_out_forensics(stop_outs + winners)
+
+    assert fo["pct_reached_target"] == pytest.approx(0.1)
+    assert fo["branch"] == "B"
+    assert "Branch B" in fo["interpretation"] or "edge" in fo["interpretation"]
+
+
+def test_stop_out_forensics_no_stop_outs():
+    """No stop-outs → n=0 and graceful None fields."""
+    trades = [_trade(+1.0)] * 5 + [_trade(0.0, exit_reason="time_stop")] * 3
+    fo = stop_out_forensics(trades)
+    assert fo["n_stop_outs"] == 0
+    assert fo["pct_reached_target"] is None
+    assert fo["branch"] is None
+    assert "No stop-out" in fo["interpretation"]
+
+
+def test_stop_out_forensics_no_post_data():
+    """Stop-outs with post_stop_reached_target=None → pct_reached=None, no branch."""
+    trades = [_trade(-1.0, exit_reason="stop")] * 10  # no post-stop fields set
+    fo = stop_out_forensics(trades)
+    assert fo["n_stop_outs"] == 10
+    assert fo["pct_reached_target"] is None
+    assert fo["branch"] is None
+
+
+def test_render_report_has_stop_out_forensics():
+    """render_report JSON output contains E14.1 stop_out_forensics key."""
+    md, json_data = render_report([], [], [])
+    assert "stop_out_forensics" in json_data

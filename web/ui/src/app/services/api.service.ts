@@ -82,6 +82,15 @@ export interface TradeRecord {
   score: number;
 }
 
+export interface StopOutForensics {
+  n_stop_outs: number;
+  pct_reached_target: number | null;
+  median_post_stop_mfe_r: number | null;
+  winners_mae_near_minus1_pct: number | null;
+  branch: 'A' | 'B' | null;
+  interpretation: string;
+}
+
 export interface FailureAnalysis {
   total_non_winners: number;
   stop_out: number;
@@ -122,6 +131,7 @@ export interface Run {
   biases?: string[] | null;
   trades?: TradeRecord[] | null;
   failure_analysis?: FailureAnalysis | null;
+  stop_out_forensics?: StopOutForensics | null;
   target_r_buckets?: TargetBucket[] | null;
   target_atr_buckets?: TargetBucket[] | null;
 }

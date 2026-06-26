@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { ApiService, Run, CoreMetrics, ScoreBucket, ConfBucket, GateAttrib, TradeRecord, FailureAnalysis, TargetBucket } from '../../services/api.service';
+import { ApiService, Run, CoreMetrics, ScoreBucket, ConfBucket, GateAttrib, TradeRecord, FailureAnalysis, StopOutForensics, TargetBucket } from '../../services/api.service';
 
 @Component({
   selector: 'app-backtests',
@@ -59,6 +59,16 @@ export class BacktestsComponent implements OnInit {
 
   get failureAnalysis(): FailureAnalysis | null {
     return this.selectedRun?.failure_analysis ?? null;
+  }
+
+  get stopOutForensics(): StopOutForensics | null {
+    return this.selectedRun?.stop_out_forensics ?? null;
+  }
+
+  branchClass(branch: string | null): string {
+    if (branch === 'A') return 'branch-a';
+    if (branch === 'B') return 'branch-b';
+    return '';
   }
 
   get targetRBuckets(): TargetBucket[] {

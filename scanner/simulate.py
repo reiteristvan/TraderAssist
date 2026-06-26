@@ -49,6 +49,10 @@ class Trade:
     flags: dict = field(default_factory=dict)
     target_r: Optional[float] = None    # (target − entry) / (entry − stop)
     target_atr: Optional[float] = None  # (target − entry) / signal ATR
+    mae_r: Optional[float] = None       # max adverse excursion ÷ risk (≤ 0)
+    mfe_r: Optional[float] = None       # max favorable excursion ÷ risk (≥ 0)
+    post_stop_reached_target: Optional[bool] = None  # stop-outs only
+    post_stop_mfe_r: Optional[float] = None          # stop-outs only
 
 
 def simulate_trades(
@@ -154,6 +158,12 @@ def simulate_trades(
         exit_reason = None
         flags: dict = {}
 
+        # MAE/MFE: running worst/best price from entry (updated each bar)
+        min_low = entry_px
+        max_high = entry_px
+        post_stop_reached_target_val: Optional[bool] = None
+        post_stop_mfe_r_val: Optional[float] = None
+
         n_bars = len(future)
         for bar_idx in range(n_bars):
             bar = future.iloc[bar_idx]
@@ -162,19 +172,27 @@ def simulate_trades(
             close = float(bar["Close"])
             bar_dt = bar.name.date() if hasattr(bar.name, "date") else bar.name
 
+            min_low = min(min_low, low)
+            max_high = max(max_high, high)
+
             stop_hit = low <= sig.stop
             target_hit = high >= sig.target
 
-            if stop_hit and target_hit:
+            if stop_hit:
                 exit_date = bar_dt
                 exit_px_val = sig.stop
                 exit_reason = "stop"
-                flags["ambiguous_bar"] = True
-                break
-            elif stop_hit:
-                exit_date = bar_dt
-                exit_px_val = sig.stop
-                exit_reason = "stop"
+                if target_hit:
+                    flags["ambiguous_bar"] = True
+                # Shadow post-stop: bars remaining in the time-stop window
+                remaining = future.iloc[bar_idx + 1:time_stop]
+                if not remaining.empty:
+                    max_post_high = float(remaining["High"].max())
+                    post_stop_reached_target_val = max_post_high >= sig.target
+                    post_stop_mfe_r_val = (max_post_high - entry_px) / risk
+                else:
+                    post_stop_reached_target_val = False
+                    post_stop_mfe_r_val = 0.0
                 break
             elif target_hit:
                 exit_date = bar_dt
@@ -194,6 +212,8 @@ def simulate_trades(
             exit_px_val = float(last_bar["Close"])
             exit_reason = "time_stop"
 
+        mae_r_val = (min_low - entry_px) / risk
+        mfe_r_val = (max_high - entry_px) / risk
         r_multiple = (exit_px_val - entry_px) / risk
         holding_days = (pd.Timestamp(exit_date) - pd.Timestamp(entry_dt)).days
 
@@ -207,6 +227,10 @@ def simulate_trades(
             flags=flags,
             target_r=target_r_val,
             target_atr=target_atr_val,
+            mae_r=mae_r_val,
+            mfe_r=mfe_r_val,
+            post_stop_reached_target=post_stop_reached_target_val,
+            post_stop_mfe_r=post_stop_mfe_r_val,
         ))
 
     return trades

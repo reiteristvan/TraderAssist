@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 _DEFAULT_DB = Path("data/scanner.db")
-_SCHEMA_VERSION = 7
+_SCHEMA_VERSION = 8
 
 # ── DDL ───────────────────────────────────────────────────────────────────────
 
@@ -59,6 +59,10 @@ CREATE TABLE IF NOT EXISTS signals (
     notes       TEXT,
     target_r    REAL,
     target_atr  REAL,
+    mae_r       REAL,
+    mfe_r       REAL,
+    post_stop_reached_target INTEGER,
+    post_stop_mfe_r REAL,
     created_at  TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE (date, ticker, strategy, source, run_id)
 );
@@ -140,6 +144,13 @@ def migrate(db_path: Optional[Path] = None, conn: Optional[sqlite3.Connection] =
                 conn.execute("ALTER TABLE signals ADD COLUMN target_r REAL")
                 conn.execute("ALTER TABLE signals ADD COLUMN target_atr REAL")
                 conn.execute("UPDATE schema_version SET version = 7")
+                current = 7
+            if current < 8:
+                conn.execute("ALTER TABLE signals ADD COLUMN mae_r REAL")
+                conn.execute("ALTER TABLE signals ADD COLUMN mfe_r REAL")
+                conn.execute("ALTER TABLE signals ADD COLUMN post_stop_reached_target INTEGER")
+                conn.execute("ALTER TABLE signals ADD COLUMN post_stop_mfe_r REAL")
+                conn.execute("UPDATE schema_version SET version = 8")
         conn.commit()
     finally:
         if own:
@@ -237,7 +248,12 @@ def get_live_resolved_signals(conn: sqlite3.Connection) -> list[dict]:
 
 
 def update_signal_outcome(conn: sqlite3.Connection, signal_id: int, outcome: dict) -> None:
-    merged = {"target_r": None, "target_atr": None, **outcome}
+    merged = {
+        "target_r": None, "target_atr": None,
+        "mae_r": None, "mfe_r": None,
+        "post_stop_reached_target": None, "post_stop_mfe_r": None,
+        **outcome,
+    }
     conn.execute(
         """UPDATE signals SET
                outcome_checked_at = :outcome_checked_at,
@@ -248,7 +264,11 @@ def update_signal_outcome(conn: sqlite3.Connection, signal_id: int, outcome: dic
                holding_days = :holding_days,
                flags       = :flags,
                target_r    = :target_r,
-               target_atr  = :target_atr
+               target_atr  = :target_atr,
+               mae_r       = :mae_r,
+               mfe_r       = :mfe_r,
+               post_stop_reached_target = :post_stop_reached_target,
+               post_stop_mfe_r = :post_stop_mfe_r
            WHERE id = :id""",
         {**merged, "id": signal_id},
     )
