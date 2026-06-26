@@ -331,9 +331,10 @@ def cmd_backtest(args) -> None:
         from datetime import datetime as _dtime
         run_meta["started_at"] = run_meta.get("started_at", _dtime.now().isoformat())
         run_meta["finished_at"] = _dtime.now().isoformat()
+        run_ts = _dtime.now().strftime("%Y%m%d_%H%M%S")
         write_backtest_to_db(
             signals, q_trades, nm_trades,
-            run_id=run_meta.get("git_hash", "unknown") + "_" + run_meta["start"],
+            run_id=f"{run_meta.get('git_hash', 'unknown')}_{run_meta['start']}_{run_ts}",
             run_meta=run_meta,
             metrics=json_data,  # full report: metrics + score_buckets + gate_attribution
             biases=json_data["biases"],
