@@ -113,6 +113,7 @@ export interface GateAttrib {
   qualified_expectancy_r: number | null;
   delta_r: number | null;
   verdict: string;
+  recommendation?: 'keep' | 'cut' | 'insufficient_n';
 }
 
 export interface Run {

@@ -167,12 +167,13 @@
                 <th class="num">Near-miss E(R)</th>
                 <th class="num">Qualified E(R)</th>
                 <th class="num">Δ(R)</th>
+                <th>Rec.</th>
                 <th>Verdict</th>
               </tr>
             </thead>
             <tbody>
               <tr *ngFor="let a of gateAttribution"
-                  [class.muted-row]="a.verdict === 'insufficient n'">
+                  [class.muted-row]="a.recommendation === 'insufficient_n'">
                 <td>{{ a.gate }}</td>
                 <td class="num">{{ a.n }}</td>
                 <td class="num" [class.positive]="(a.expectancy_r ?? 0) > 0"
@@ -182,8 +183,13 @@
                 <td class="num positive">
                   {{ a.qualified_expectancy_r != null ? fmtR3(a.qualified_expectancy_r) : '—' }}
                 </td>
-                <td class="num" [class]="deltaClass(a.delta_r)">
+                <td class="num" [class]="gateAttribDeltaClass(a.delta_r)">
                   {{ a.delta_r != null ? ((a.delta_r >= 0 ? '+' : '') + (a.delta_r | number:'1.3-3')) : '—' }}
+                </td>
+                <td>
+                  <span class="rec-badge" [class]="recClass(a.recommendation)">
+                    {{ a.recommendation ?? '—' }}
+                  </span>
                 </td>
                 <td class="verdict-cell">{{ a.verdict }}</td>
               </tr>

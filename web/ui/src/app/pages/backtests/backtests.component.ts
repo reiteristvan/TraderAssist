@@ -135,4 +135,18 @@ export class BacktestsComponent implements OnInit {
     if (v < -0.05) return 'negative';
     return '';
   }
+
+  // Gate attribution delta: positive delta (near-misses beat qualified) is bad for the gate.
+  gateAttribDeltaClass(v: number | null | undefined): string {
+    if (v == null) return '';
+    if (v > 0.05) return 'negative';   // near-misses outperform → gate blocks good trades
+    if (v < -0.05) return 'positive';  // near-misses underperform → gate protects correctly
+    return '';
+  }
+
+  recClass(rec: string | undefined): string {
+    if (rec === 'keep') return 'rec-keep';
+    if (rec === 'cut') return 'rec-cut';
+    return 'rec-insuff';
+  }
 }

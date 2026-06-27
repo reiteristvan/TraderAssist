@@ -220,24 +220,23 @@ def test_bucket_by_confidence_levels():
 # ── E8.3 — gate_attribution ───────────────────────────────────────────────────
 
 def test_gate_attribution_delta_near_zero():
-    """Near-misses matching qualified expectancy → 'no measurable value'."""
-    # Qualified expectancy = 0.5R; near-miss single-gate NR7 trades also avg 0.5R
+    """Near-misses matching qualified expectancy → 'no measurable value', recommendation='cut'."""
     qualified_exp = 0.5
     near_misses = [
         _trade(+0.5, qualified=False, failed_gates=["NR7 pattern"]) for _ in range(35)
     ]
-    all_trades = near_misses
 
-    attr = gate_attribution(all_trades, qualified_exp)
+    attr = gate_attribution(near_misses, qualified_exp)
     assert len(attr) == 1
     a = attr[0]
     assert a["gate"] == "NR7 pattern"
     assert a["n"] == 35
     assert a["verdict"] == "no measurable value in this sample"
+    assert a["recommendation"] == "cut"
 
 
 def test_gate_attribution_insufficient_n():
-    """Fewer than 30 near-misses for a gate → 'insufficient n'."""
+    """Fewer than 30 near-misses for a gate → 'insufficient n', recommendation='insufficient_n'."""
     near_misses = [
         _trade(+0.5, qualified=False, failed_gates=["NR7 pattern"]) for _ in range(15)
     ]
@@ -245,6 +244,36 @@ def test_gate_attribution_insufficient_n():
     a = attr[0]
     assert a["n"] == 15
     assert a["verdict"] == "insufficient n"
+    assert a["recommendation"] == "insufficient_n"
+
+
+def test_gate_attribution_protective_gate():
+    """Near-misses underperform qualified by >0.1 → recommendation='keep'."""
+    # Qualified exp = 0.5; near-misses avg −0.2 → delta = −0.7 (gate adds protective value)
+    near_misses = [
+        _trade(-0.2, exit_reason="stop", qualified=False, failed_gates=["ADX gate"])
+        for _ in range(40)
+    ]
+    attr = gate_attribution(near_misses, 0.5)
+    a = attr[0]
+    assert a["delta_r"] == pytest.approx(-0.7)
+    assert a["recommendation"] == "keep"
+    assert "underperform" in a["verdict"]
+    assert "protective" in a["verdict"]
+
+
+def test_gate_attribution_blocking_good_trades():
+    """Near-misses outperform qualified by >0.1 → recommendation='cut'."""
+    # Qualified exp = 0.2; near-misses avg 0.6 → delta = +0.4 (gate blocks good setups)
+    near_misses = [
+        _trade(+0.6, qualified=False, failed_gates=["Volume check"])
+        for _ in range(35)
+    ]
+    attr = gate_attribution(near_misses, 0.2)
+    a = attr[0]
+    assert a["delta_r"] == pytest.approx(0.4)
+    assert a["recommendation"] == "cut"
+    assert "outperform" in a["verdict"]
 
 
 def test_gate_attribution_skips_multi_fail():

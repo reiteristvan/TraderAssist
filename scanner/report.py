@@ -184,12 +184,20 @@ def gate_attribution(
 
         if n < MIN_ATTRIBUTION_N:
             verdict = "insufficient n"
+            recommendation = "insufficient_n"
         elif delta is not None and abs(delta) < 0.1:
             verdict = "no measurable value in this sample"
+            recommendation = "cut"
         elif delta is not None and delta > 0:
-            verdict = "positive gate value (near-misses underperform qualified)"
+            # Near-misses outperform qualified: gate blocks trades that would have
+            # performed better — no protective value (may actively harm).
+            verdict = "near-misses outperform qualified (gate may be blocking good setups)"
+            recommendation = "cut"
         else:
-            verdict = "questionable gate value (near-misses match or beat qualified)"
+            # delta <= -0.1: near-misses underperform qualified — gate correctly
+            # identifies weaker setups that should not be taken.
+            verdict = "near-misses underperform qualified (gate shows protective value)"
+            recommendation = "keep"
 
         result.append({
             "gate": gate,
@@ -198,6 +206,7 @@ def gate_attribution(
             "qualified_expectancy_r": qualified_expectancy,
             "delta_r": delta,
             "verdict": verdict,
+            "recommendation": recommendation,
         })
 
     return result
@@ -541,15 +550,16 @@ def render_report(
     if attribution:
         lines += ["\n## Gate Attribution (near-miss analysis)\n"]
         lines += [
-            "| Gate | n (near-miss) | Near-miss E(R) | Qualified E(R) | Δ(R) | Verdict |",
-            "|------|---------------|----------------|----------------|------|---------|",
+            "| Gate | n (near-miss) | Near-miss E(R) | Qualified E(R) | Δ(R) | Recommendation | Verdict |",
+            "|------|---------------|----------------|----------------|------|----------------|---------|",
         ]
         for a in attribution:
             exp = f"{a['expectancy_r']:.3f}" if a["expectancy_r"] is not None else "—"
             qexp = f"{a['qualified_expectancy_r']:.3f}" if a["qualified_expectancy_r"] is not None else "—"
             delta = f"{a['delta_r']:.3f}" if a["delta_r"] is not None else "—"
+            rec = a["recommendation"].upper().replace("_", "-")
             lines.append(
-                f"| {a['gate']} | {a['n']} | {exp} | {qexp} | {delta} | {a['verdict']} |"
+                f"| {a['gate']} | {a['n']} | {exp} | {qexp} | {delta} | **{rec}** | {a['verdict']} |"
             )
         lines.append("")
 

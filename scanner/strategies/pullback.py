@@ -16,7 +16,6 @@ from ta.trend import ADXIndicator, SMAIndicator
 
 from scanner.core import (
     ADVANCE_WINDOW,
-    ADX_MIN_TREND,
     DEBT_EQUITY_MAX,
     DOLLAR_VOL_MIN,
     EARNINGS_BUFFER_DAYS,
@@ -244,9 +243,6 @@ def evaluate(ticker: str, df: pd.DataFrame, ctx: EvalContext,
 
     log.gate("RSI(14) reset", RSI_PULLBACK_RANGE[0] <= rsi <= RSI_PULLBACK_RANGE[1],
              f"{rsi:.1f} — target {RSI_PULLBACK_RANGE[0]}-{RSI_PULLBACK_RANGE[1]}")
-
-    log.gate("ADX(14) trend strength", adx >= ADX_MIN_TREND,
-             f"{adx:.1f} — min {ADX_MIN_TREND}")
 
     # ── Filters ────────────────────────────────────────────────────────────────
     log.section("Filters")

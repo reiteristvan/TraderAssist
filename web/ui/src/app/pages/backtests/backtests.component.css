@@ -28,6 +28,14 @@
 .attrib-table th, .attrib-table td { font-size: 12px; padding: 8px 10px; }
 .verdict-cell { font-size: 12px; color: #9090b0; max-width: 220px; }
 
+.rec-badge {
+  display: inline-block; padding: 2px 7px; border-radius: 4px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+}
+.rec-keep   { background: #1a3a2a; color: #4caf89; }
+.rec-cut    { background: #3a2a1a; color: #e09060; }
+.rec-insuff { background: #2a2a3a; color: #6070a0; }
+
 .trades-table { table-layout: auto; width: 100%; }
 .trades-table th, .trades-table td { font-size: 12px; padding: 7px 10px; white-space: nowrap; }
 .trades-table th.num, .trades-table td.num { width: 1%; }

@@ -16,7 +16,6 @@ from ta.trend import ADXIndicator, SMAIndicator
 from ta.volatility import BollingerBands
 
 from scanner.core import (
-    ADX_MIN_TREND,
     DEBT_EQUITY_MAX,
     DOLLAR_VOL_MIN,
     EARNINGS_BUFFER_DAYS,

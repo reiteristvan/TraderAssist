@@ -382,6 +382,103 @@ def cmd_universe(args) -> None:
         print("Usage: scan.py universe {build --index sp500|sp400|sp600 --out FILE | audit --file FILE}")
 
 
+def cmd_postmortem(args) -> None:
+    """E14.4 — Loser post-mortem: enrich trades, find worst stop-outs, dimension analysis."""
+    import json
+    from datetime import date as _date
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    import pandas as pd
+    from scanner.data_store import get_history, get_market_data
+    from scanner.postmortem import (
+        enrich_trades, loser_postmortem, dimension_analysis, render_postmortem,
+    )
+    from scanner.simulate import Signal
+
+    run_dir = Path(args.run)
+    if not run_dir.exists():
+        print(f"Run directory not found: {run_dir}", file=sys.stderr)
+        sys.exit(1)
+
+    trades_path  = run_dir / "trades.parquet"
+    signals_path = run_dir / "signals.parquet"
+    if not trades_path.exists() or not signals_path.exists():
+        print(f"Missing trades.parquet or signals.parquet in {run_dir}", file=sys.stderr)
+        sys.exit(1)
+
+    n_worst = getattr(args, "n", 25)
+
+    # ── Load trades ────────────────────────────────────────────────────────────
+    trades_df = pd.read_parquet(trades_path)
+    trades = []
+    for _, row in trades_df.iterrows():
+        if not row.get("qualified", False):
+            continue
+        rm = row.get("r_multiple")
+        if rm is None or (hasattr(rm, "__float__") and pd.isna(float(rm))):
+            continue
+        trades.append(SimpleNamespace(
+            ticker       = row["ticker"],
+            signal_date  = _date.fromisoformat(str(row["signal_date"])[:10]),
+            exit_reason  = row.get("exit_reason", ""),
+            r_multiple   = float(rm),
+            score        = float(row.get("score", 0) or 0),
+            confidence   = row.get("confidence"),
+            qualified    = True,
+            failed_gates = [],
+        ))
+    print(f"  Loaded {len(trades)} qualified resolved trades from {run_dir.name}")
+
+    # ── Load signals (for close price lookup) ─────────────────────────────────
+    sigs_df = pd.read_parquet(signals_path)
+    signals_raw = []
+    for _, row in sigs_df.iterrows():
+        fg_raw = row.get("failed_gates", "")
+        fg = fg_raw.split(";") if isinstance(fg_raw, str) and fg_raw else []
+        signals_raw.append(Signal(
+            date         = _date.fromisoformat(str(row["date"])[:10]),
+            ticker       = row["ticker"],
+            strategy     = row.get("strategy", "pullback"),
+            score        = float(row.get("score", 0) or 0),
+            confidence   = row.get("confidence"),
+            stop         = float(row.get("stop", 0) or 0),
+            target       = float(row.get("target", 0) or 0),
+            atr          = float(row.get("atr", 0) or 0),
+            qualified    = bool(row.get("qualified", False)),
+            failed_gates = fg,
+            close        = float(row.get("close", 0) or 0),
+        ))
+
+    # ── Load SPY ──────────────────────────────────────────────────────────────
+    market = get_market_data()
+    spy_bars = market.get("SPY")
+
+    # ── Enrich ────────────────────────────────────────────────────────────────
+    print("Enriching trades with SPY regime, dist-above-20MA, RS…")
+    enriched = enrich_trades(trades, signals_raw, get_history, spy_bars)
+    print(f"  Enriched {len(enriched)} trades")
+
+    if not enriched:
+        print("No enriched trades — nothing to analyse.", file=sys.stderr)
+        sys.exit(1)
+
+    overall_exp = sum(r["r_multiple"] for r in enriched) / len(enriched)
+    print(f"  Overall E(R) = {overall_exp:+.3f}R")
+
+    # ── Post-mortem ───────────────────────────────────────────────────────────
+    pm  = loser_postmortem(enriched, n=n_worst)
+    dim = dimension_analysis(enriched, overall_exp)
+
+    run_label = run_dir.name
+    report_md = render_postmortem(pm, dim, overall_exp, run_label=run_label)
+
+    out_path = run_dir / "postmortem.md"
+    out_path.write_text(report_md, encoding="utf-8")
+    print(f"\nPost-mortem written → {out_path}")
+    print(report_md)
+
+
 def _process_diagnose_job(conn, job: dict) -> str:
     """Run a diagnose job; returns the new signal's row id as result_ref."""
     import json as _json
@@ -581,6 +678,13 @@ def build_parser() -> argparse.ArgumentParser:
     wk_p.add_argument("--poll-interval", type=int, default=10, metavar="SEC",
                       help="Seconds to wait between queue polls in continuous mode (default 10)")
 
+    # ── postmortem (E14.4) ────────────────────────────────────────────────────
+    pm_p = sub.add_parser("postmortem", help="E14.4 — Loser post-mortem and dimension analysis")
+    pm_p.add_argument("--run", metavar="DIR", required=True,
+                      help="Run directory containing trades.parquet + signals.parquet")
+    pm_p.add_argument("--n", type=int, default=25, metavar="N",
+                      help="Number of worst stop-outs to include (default 25)")
+
     return p
 
 
@@ -592,12 +696,13 @@ def main(argv=None) -> None:
         sys.exit(0)
 
     dispatch = {
-        "scan":     cmd_scan,
-        "refresh":  cmd_refresh,
-        "backtest": cmd_backtest,
-        "journal":  cmd_journal,
-        "universe": cmd_universe,
-        "worker":   cmd_worker,
+        "scan":       cmd_scan,
+        "refresh":    cmd_refresh,
+        "backtest":   cmd_backtest,
+        "journal":    cmd_journal,
+        "universe":   cmd_universe,
+        "worker":     cmd_worker,
+        "postmortem": cmd_postmortem,
     }
     dispatch[args.command](args)
 
