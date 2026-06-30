@@ -56,10 +56,10 @@
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | IND-01 | Phase 1 | Pending |
-| IND-02 | Phase 1 | Pending |
-| IND-03 | Phase 1 | Pending |
-| IND-04 | Phase 1 | Pending |
-| IND-05 | Phase 1 | Pending |
+| IND-02 | Phase 2 | Pending |
+| IND-03 | Phase 2 | Pending |
+| IND-04 | Phase 2 | Pending |
+| IND-05 | Phase 2 | Pending |
 | IND-06 | Phase 2 | Pending |
 | IND-07 | Phase 3 | Pending |
 | WLA-01 | Phase 4 | Pending |
@@ -76,4 +76,4 @@
 
 ---
 *Requirements defined: 2026-06-30*
-*Last updated: 2026-06-30 after initial definition*
+*Last updated: 2026-06-30 after roadmap creation*
