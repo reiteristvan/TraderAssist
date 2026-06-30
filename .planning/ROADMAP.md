@@ -29,7 +29,9 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. All ~10 industry ETF tickers added to `_MARKET_SYMBOLS` are downloaded and Parquet-cached without errors on `scan.py refresh`
   3. A ticker with no yfinance industry classification returns NULL (not empty string or 0.0) in `QualityInfo.industry`, verified by a unit test
   4. An industry with no direct ETF entry falls back to its sector-level ETF rather than raising an exception, verified by a unit test
-**Plans**: TBD
+**Plans**: 2 plans
+- [ ] 01-01-PLAN.md — INDUSTRY_ETF_MAP + resolve_industry_etf() resolution chain + deduplicated _MARKET_SYMBOLS (wave 1)
+- [ ] 01-02-PLAN.md — QualityInfo industry/industry_key fields + _make_quality_info() fetch (wave 2)
 
 ### Phase 2: Industry Momentum Computation + Schema v7
 **Goal**: Every signal has industry group, 20-day momentum score, above/below 50-day MA flag, and rank percentile computed without look-ahead bias and stored in dedicated DB columns under schema v7.
