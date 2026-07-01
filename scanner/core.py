@@ -312,6 +312,33 @@ def _industry_strength(
     return out
 
 
+def _attach_industry_rank_pct(rows: list) -> None:
+    """Mutate rows in-place: assign industry_rank_pct via per-ETF percentile ranking.
+
+    Collects one momentum score per distinct ETF (first occurrence wins), then uses
+    pandas.Series.rank(pct=True) in ascending order so higher momentum = higher rank.
+    When fewer than 2 distinct ETFs are present, every row's industry_rank_pct stays None.
+    NaN results are coerced to None before assignment (T-02-06 mitigation).
+
+    Must be called POST-LOOP (after all per-ticker rows are assembled) — never inside the
+    per-ticker loop or rank values will be wrong (Pitfall 3).
+    """
+    etf_scores: dict = {}
+    for row in rows:
+        etf = row.get("industry_etf")
+        mom = row.get("industry_momentum")
+        if etf is not None and mom is not None and etf not in etf_scores:
+            etf_scores[etf] = mom
+    if len(etf_scores) < 2:
+        return  # fewer than 2 distinct ETFs — rank is undefined; leave None
+    pct_ranks = pd.Series(etf_scores).rank(pct=True)
+    for row in rows:
+        etf = row.get("industry_etf")
+        if etf is not None and etf in pct_ranks.index:
+            val = pct_ranks[etf]
+            row["industry_rank_pct"] = float(val) if not pd.isna(val) else None
+
+
 def _sector_strength(sector: Optional[str], market_data: dict) -> dict:
     out = {"sector_etf": None, "sector_above_50ma": False, "sector_outperforming": False}
     if not sector:
@@ -686,7 +713,7 @@ def run_scan(
         row["industry_etf"]      = _strength["industry_etf"]
         row["industry_momentum"] = _strength["industry_mom_20d"]
         row["industry_above_50ma"] = _strength["industry_above_50ma"]
-        # industry_rank_pct is computed in Plan 02's post-loop step — leave unset here
+        row["industry_rank_pct"] = None  # populated by post-loop rank step below
         rows.append(row)
 
     if n > 1 and not verbose:
@@ -694,6 +721,10 @@ def run_scan(
 
     if not rows:
         return pd.DataFrame()
+
+    # Post-loop: assign within-run industry rank percentile (IND-04).
+    # Must run AFTER all rows are assembled (Pitfall 3 prevention).
+    _attach_industry_rank_pct(rows)
 
     df_out = pd.DataFrame(rows)
     if not capture_all and "qualified" in df_out.columns:

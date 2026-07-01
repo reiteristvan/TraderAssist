@@ -26,6 +26,11 @@ class Signal:
     qualified: bool
     failed_gates: list[str] = field(default_factory=list)
     close: float = 0.0  # signal-bar close price
+    # Phase 2 — industry momentum (all Optional; None-defaulted so positional callers unaffected)
+    industry_group: Optional[str] = None
+    industry_momentum: Optional[float] = None
+    industry_above_50ma: Optional[bool] = None
+    industry_rank_pct: Optional[float] = None
 
 
 @dataclass
