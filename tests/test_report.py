@@ -26,6 +26,10 @@ from scanner.report import (
     bucket_by_target_r,
     bucket_by_target_atr,
     stop_out_forensics,
+    wl_characteristic_analysis,
+    WL_FEATURES,
+    WL_MIN_TOTAL,
+    WL_MIN_BUCKET,
 )
 
 
@@ -488,3 +492,163 @@ def test_render_report_has_stop_out_forensics():
     """render_report JSON output contains E14.1 stop_out_forensics key."""
     md, json_data = render_report([], [], [])
     assert "stop_out_forensics" in json_data
+
+
+# ── Phase 4 — W/L characteristic analysis (WLA-01 through WLA-06) ────────────
+
+def _wl_signal(
+    ticker: str = "TEST",
+    strategy: str = "pullback",
+    r_entry: float = 50.0,
+    rvol: float = 1.5,
+    depth: float | None = 8.0,
+    industry_momentum: float = 3.0,
+    pct_high: float = 15.0,
+    sig_date: date = date(2026, 1, 2),
+) -> Signal:
+    """Build a qualified Signal with W/L entry-time metric fields populated."""
+    return Signal(
+        date=sig_date,
+        ticker=ticker,
+        strategy=strategy,
+        score=60.0,
+        confidence="MEDIUM",
+        stop=90.0,
+        target=120.0,
+        atr=2.0,
+        qualified=True,
+        rsi_entry=r_entry,
+        rvol=rvol,
+        pullback_depth_pct=depth,
+        industry_momentum=industry_momentum,
+        pct_to_52w_high=pct_high,
+    )
+
+
+def test_wl_features_is_constant():
+    """WL_FEATURES is a list of exactly 6 items and includes 'Industry momentum' (WLA-02, WLA-04, WLA-06)."""
+    assert isinstance(WL_FEATURES, list)
+    assert len(WL_FEATURES) == 6
+    assert "Industry momentum" in WL_FEATURES
+
+
+def test_wl_analysis_abort():
+    """Fewer than 200 active qualified trades → aborted=True, strategies==[], abort_reason present (WLA-05)."""
+    # 50 trades < WL_MIN_TOTAL=200
+    sig = _wl_signal()
+    trades = [_trade(+1.0, target_atr=2.0)] * 30 + [_trade(-1.0, exit_reason="stop", target_atr=2.0)] * 20
+    result = wl_characteristic_analysis([sig], trades)
+    assert result["aborted"] is True
+    assert result["strategies"] == []
+    assert "fewer than 200" in result["abort_reason"]
+
+
+def test_wl_analysis_basic():
+    """Hand-fixture: 110 winners (rsi=48) + 110 losers (rsi=55) → correct medians and delta (WLA-01)."""
+    sig_w = _wl_signal(r_entry=48.0, sig_date=date(2026, 1, 2))
+    sig_l = _wl_signal(r_entry=55.0, sig_date=date(2026, 1, 3))
+    winners = [_trade(+1.0, signal_date=date(2026, 1, 2), target_atr=2.0)] * 110
+    losers = [_trade(-1.0, exit_reason="stop", signal_date=date(2026, 1, 3), target_atr=2.0)] * 110
+    result = wl_characteristic_analysis([sig_w, sig_l], winners + losers)
+    assert not result["aborted"]
+    strat = result["strategies"][0]
+    assert not strat["suppressed"]
+    rsi_row = next(r for r in strat["rows"] if r["metric"] == "RSI at entry")
+    assert rsi_row["winners_median"] == pytest.approx(48.0)
+    assert rsi_row["losers_median"] == pytest.approx(55.0)
+    assert rsi_row["delta"] == pytest.approx(round(48.0 - 55.0, 4))
+
+
+def test_wl_analysis_six_metrics():
+    """Non-suppressed strategy has exactly 6 rows whose metric names equal WL_FEATURES in order (WLA-02)."""
+    sig = _wl_signal()
+    trades = [_trade(+1.0, target_atr=2.0)] * 110 + [_trade(-1.0, exit_reason="stop", target_atr=2.0)] * 110
+    result = wl_characteristic_analysis([sig], trades)
+    assert not result["aborted"]
+    strat = result["strategies"][0]
+    assert not strat["suppressed"]
+    assert len(strat["rows"]) == 6
+    assert [r["metric"] for r in strat["rows"]] == WL_FEATURES
+
+
+def test_wl_analysis_per_strategy():
+    """Mixed pullback+breakout trades → two strategy entries, grouped separately (WLA-03)."""
+    sig_pb = _wl_signal(strategy="pullback", sig_date=date(2026, 1, 2))
+    sig_br = _wl_signal(strategy="breakout", sig_date=date(2026, 2, 1), depth=None)
+
+    # Pullback trades (60W + 60L)
+    pb_wins = [_trade(+1.0, signal_date=date(2026, 1, 2), target_atr=2.0)] * 60
+    pb_loss = [_trade(-1.0, exit_reason="stop", signal_date=date(2026, 1, 2), target_atr=2.0)] * 60
+
+    # Breakout trades built directly — strategy="breakout"
+    def _br_trade(r: float) -> Trade:
+        return Trade(
+            ticker="TEST",
+            signal_date=date(2026, 2, 1),
+            entry_date=date(2026, 2, 2),
+            entry_px=100.0,
+            exit_date=date(2026, 2, 12),
+            exit_px=100.0 + r * 10,
+            exit_reason="target" if r > 0 else "stop",
+            r_multiple=r,
+            holding_days=10,
+            score=65.0,
+            confidence="MEDIUM",
+            strategy="breakout",
+            qualified=True,
+            failed_gates=[],
+            flags={},
+            target_atr=2.0,
+        )
+
+    br_wins = [_br_trade(+1.0)] * 60
+    br_loss = [_br_trade(-1.0)] * 60
+
+    result = wl_characteristic_analysis(
+        [sig_pb, sig_br],
+        pb_wins + pb_loss + br_wins + br_loss,
+    )
+    assert not result["aborted"]
+    strategy_names = [s["strategy"] for s in result["strategies"]]
+    assert "pullback" in strategy_names
+    assert "breakout" in strategy_names
+    assert len(result["strategies"]) == 2
+
+
+def test_wl_analysis_suppressed():
+    """Strategy with fewer than 50 winners → suppressed=True, rows==[], reason mentions 'fewer than 50' (WLA-05)."""
+    sig = _wl_signal()
+    # 30 winners + 250 losers = 280 total (>= 200); winner bucket 30 < 50 → suppressed
+    winners = [_trade(+1.0, target_atr=2.0)] * 30
+    losers = [_trade(-1.0, exit_reason="stop", target_atr=2.0)] * 250
+    result = wl_characteristic_analysis([sig], winners + losers)
+    assert not result["aborted"]
+    strat = result["strategies"][0]
+    assert strat["suppressed"] is True
+    assert strat["rows"] == []
+    assert "fewer than 50" in strat["suppression_reason"]
+
+
+def test_wl_analysis_has_industry_momentum():
+    """'Industry momentum' appears among the row metrics of a non-suppressed strategy (WLA-04)."""
+    sig = _wl_signal(industry_momentum=5.0)
+    trades = [_trade(+1.0, target_atr=2.0)] * 110 + [_trade(-1.0, exit_reason="stop", target_atr=2.0)] * 110
+    result = wl_characteristic_analysis([sig], trades)
+    strat = result["strategies"][0]
+    assert not strat["suppressed"]
+    metric_names = [r["metric"] for r in strat["rows"]]
+    assert "Industry momentum" in metric_names
+
+
+def test_render_report_has_wl_analysis():
+    """render_report() over 200+ qualified trades returns json_out with 'wl_analysis' key, aborted=False (WLA-01)."""
+    sig = _wl_signal()
+    # Build 110 winners + 110 losers with matching signal key
+    q_trades = (
+        [_trade(+1.0, target_atr=2.0)] * 110
+        + [_trade(-1.0, exit_reason="stop", target_atr=2.0)] * 110
+    )
+    sigs = [sig] * len(q_trades)  # all map to the same key — medians still well-defined
+    _md, json_data = render_report(sigs, q_trades)
+    assert "wl_analysis" in json_data
+    assert json_data["wl_analysis"]["aborted"] is False
