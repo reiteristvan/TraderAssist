@@ -7,6 +7,44 @@ from datetime import date
 from scanner.core import GateLog, QualityInfo, EvalContext, _days_to_earnings
 
 
+# ── resolve_industry_etf tests ────────────────────────────────────────────────
+
+def test_resolve_industry_etf_direct_hit():
+    """Direct map hit: known industry key returns the mapped ETF."""
+    from scanner.core import resolve_industry_etf
+    assert resolve_industry_etf("semiconductors", "Technology") == "XSD"
+
+
+def test_resolve_industry_etf_sector_fallback_encoded_in_map():
+    """Sector-fallback entries are explicit in the map (D-03), not separate logic."""
+    from scanner.core import resolve_industry_etf
+    assert resolve_industry_etf("oil-gas-integrated", "Energy") == "XLE"
+
+
+def test_resolve_industry_etf_none_industry_key():
+    """industry_key=None returns None immediately — no sector fallback (D-06)."""
+    from scanner.core import resolve_industry_etf
+    assert resolve_industry_etf(None, "Technology") is None
+
+
+def test_resolve_industry_etf_unknown_key_sector_fallback():
+    """Key absent from INDUSTRY_ETF_MAP falls through to SECTOR_ETF_MAP (D-07)."""
+    from scanner.core import resolve_industry_etf
+    assert resolve_industry_etf("totally-unknown-key", "Technology") == "XLK"
+
+
+def test_resolve_industry_etf_unknown_key_no_sector():
+    """Key absent, sector=None — returns None."""
+    from scanner.core import resolve_industry_etf
+    assert resolve_industry_etf("totally-unknown-key", None) is None
+
+
+def test_resolve_industry_etf_unknown_key_nonexistent_sector():
+    """Key absent, sector not in SECTOR_ETF_MAP — returns None."""
+    from scanner.core import resolve_industry_etf
+    assert resolve_industry_etf("totally-unknown-key", "Nonexistent Sector") is None
+
+
 # ── GateLog tests ─────────────────────────────────────────────────────────────
 
 def test_gate_counts():
