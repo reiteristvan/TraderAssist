@@ -33,10 +33,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. A ticker with no yfinance industry classification returns NULL (not empty string or 0.0) in `QualityInfo.industry`, verified by a unit test
   4. An industry with no direct ETF entry falls back to its sector-level ETF rather than raising an exception, verified by a unit test
 
-**Plans**: 2 plans
+**Plans**: 1/2 plans executed
 **Wave 1**
 
-- [ ] 01-01-PLAN.md — INDUSTRY_ETF_MAP + resolve_industry_etf() resolution chain + deduplicated _MARKET_SYMBOLS (wave 1)
+- [x] 01-01-PLAN.md — INDUSTRY_ETF_MAP + resolve_industry_etf() resolution chain + deduplicated _MARKET_SYMBOLS (wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -97,7 +97,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Industry Classification + ETF Data Layer | 0/0 | Not started | - |
+| 1. Industry Classification + ETF Data Layer | 1/2 | In Progress|  |
 | 2. Industry Momentum Computation + Schema v7 | 0/0 | Not started | - |
 | 3. Industry Display in CLI + Web UI | 0/0 | Not started | - |
 | 4. Winner/Loser Characteristic Analysis | 0/0 | Not started | - |

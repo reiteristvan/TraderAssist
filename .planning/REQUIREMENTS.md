@@ -7,7 +7,7 @@
 
 ### Industry Momentum
 
-- [ ] **IND-01**: Every signal shows the industry group name (e.g. "Software—Infrastructure") from yfinance `info['industry']`
+- [x] **IND-01**: Every signal shows the industry group name (e.g. "Software—Infrastructure") from yfinance `info['industry']`
 - [ ] **IND-02**: Every signal shows a 20-day momentum score (signed % outperformance vs SPY) for the stock's industry group ETF
 - [ ] **IND-03**: Every signal shows an above/below 50-day MA boolean flag for the industry ETF (trending up or not)
 - [ ] **IND-04**: Every signal shows an industry rank expressed as a top-N% percentile among all industry groups observed in the scan universe
@@ -55,7 +55,7 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| IND-01 | Phase 1 | Pending |
+| IND-01 | Phase 1 | Complete |
 | IND-02 | Phase 2 | Pending |
 | IND-03 | Phase 2 | Pending |
 | IND-04 | Phase 2 | Pending |
@@ -70,6 +70,7 @@
 | WLA-06 | Phase 4 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 13 total
 - Mapped to phases: 13
 - Unmapped: 0 ✓
