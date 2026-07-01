@@ -120,6 +120,29 @@ export interface GateAttrib {
   recommendation?: 'keep' | 'cut' | 'insufficient_n';
 }
 
+export interface WlMetricRow {
+  metric: string;
+  winners_median: number | null;
+  losers_median: number | null;
+  delta: number | null;
+}
+
+export interface WlStrategyAnalysis {
+  strategy: string;
+  winner_n: number;
+  loser_n: number;
+  suppressed: boolean;
+  suppression_reason: string | null;
+  rows: WlMetricRow[];
+}
+
+export interface WlAnalysis {
+  total_qualified: number;
+  aborted: boolean;
+  abort_reason: string | null;
+  strategies: WlStrategyAnalysis[];
+}
+
 export interface Run {
   run_id: string;
   kind: 'scan' | 'backtest';
@@ -139,6 +162,7 @@ export interface Run {
   stop_out_forensics?: StopOutForensics | null;
   target_r_buckets?: TargetBucket[] | null;
   target_atr_buckets?: TargetBucket[] | null;
+  wl_analysis?: WlAnalysis | null;
 }
 
 export interface SummaryStats {

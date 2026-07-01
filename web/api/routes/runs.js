@@ -53,6 +53,7 @@ router.get('/runs/:run_id', (req, res) => {
         result.stop_out_forensics = reportData.stop_out_forensics  || null;
         result.target_r_buckets   = reportData.target_r_buckets    || [];
         result.target_atr_buckets = reportData.target_atr_buckets  || [];
+        result.wl_analysis        = reportData.wl_analysis         || null;
       } else {
         result.metrics = reportData;
       }
