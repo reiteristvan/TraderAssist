@@ -33,6 +33,10 @@ export interface Signal {
   r_multiple: number | null;
   holding_days: number | null;
   notes: string | null;
+  industry_group: string | null;
+  industry_momentum: number | null;
+  industry_above_50ma: number | null;
+  industry_rank_pct: number | null;
 }
 
 export interface CoreMetrics {
