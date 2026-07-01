@@ -98,8 +98,15 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. When total qualified trades fall below 200, the analysis outputs an explicit warning and produces no comparison table
   5. Industry momentum score appears as one column in the winner vs loser comparison table
 
-**Plans**: TBD
+**Plans**: 2 plans
 **UI hint**: yes
+**Wave 1**
+
+- [ ] 04-01-PLAN.md — Python backend: Signal metric fields + backtest capture + WL_FEATURES/wl_characteristic_analysis() + render_report wiring + tests (WLA-01..06)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 04-02-PLAN.md — Web slice: runs.js wl_analysis passthrough + api.service interfaces + backtests component getter/formatters/cards + specs (WLA-01, WLA-04, WLA-05)
 
 ## Progress
 
@@ -111,4 +118,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Industry Classification + ETF Data Layer | 2/2 | Complete    | 2026-07-01 |
 | 2. Industry Momentum Computation + Schema v7 | 2/2 | Complete    | 2026-07-01 |
 | 3. Industry Display in CLI + Web UI | 2/2 | Complete   | 2026-07-01 |
-| 4. Winner/Loser Characteristic Analysis | 0/0 | Not started | - |
+| 4. Winner/Loser Characteristic Analysis | 0/2 | Planned | - |
