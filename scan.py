@@ -192,11 +192,52 @@ def _print_scan_results(df) -> None:
     print(f"\n{'=' * 60}")
     print(f"  {len(qualified)} qualified setup(s)")
     print(f"{'=' * 60}")
-    cols = ["ticker", "strategy", "score", "confidence", "close",
-            "suggested_stop", "suggested_target", "risk_reward"]
-    display_cols = [c for c in cols if c in df.columns]
+    # D-05: column display order — industry columns inserted after confidence, before close
+    cols = [
+        "ticker", "strategy", "score", "confidence",
+        "Industry", "Mom", "Trend", "Rank%",
+        "close", "suggested_stop", "suggested_target", "risk_reward",
+    ]
     if not qualified.empty:
-        print(qualified[display_cols].to_string(index=False))
+        # Build formatted display columns on a copy (never mutate the source frame)
+        display_df = qualified.copy()
+
+        # D-02: industry_group → Industry (NULL → em dash)
+        if "industry_group" in display_df.columns:
+            display_df["Industry"] = display_df["industry_group"].apply(
+                lambda v: v if v is not None and not pd.isna(v) else "—"
+            )
+        else:
+            display_df["Industry"] = "—"
+
+        # D-02: industry_momentum → signed percent string, NULL/NaN → em dash
+        if "industry_momentum" in display_df.columns:
+            display_df["Mom"] = display_df["industry_momentum"].apply(
+                lambda v: f"{v:+.1f}%" if v is not None and not pd.isna(v) else "—"
+            )
+        else:
+            display_df["Mom"] = "—"
+
+        # D-03: industry_above_50ma → arrow symbol, NULL → em dash
+        # IMPORTANT: use explicit equality (== 1 / == 0), NOT truthy check.
+        # Integer 0 means "below 50MA" and is a valid state, not NULL.
+        if "industry_above_50ma" in display_df.columns:
+            display_df["Trend"] = display_df["industry_above_50ma"].apply(
+                lambda v: "↑" if v == 1 else ("↓" if v == 0 else "—")
+            )
+        else:
+            display_df["Trend"] = "—"
+
+        # D-04: industry_rank_pct → "Top N%", NULL/NaN → em dash
+        if "industry_rank_pct" in display_df.columns:
+            display_df["Rank%"] = display_df["industry_rank_pct"].apply(
+                lambda v: f"Top {int(round(v))}%" if v is not None and not pd.isna(v) else "—"
+            )
+        else:
+            display_df["Rank%"] = "—"
+
+        display_cols = [c for c in cols if c in display_df.columns]
+        print(display_df[display_cols].to_string(index=False))
     print()
 
 
