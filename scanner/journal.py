@@ -307,6 +307,10 @@ def write_backtest_to_db(
             "qualified": 1 if s.qualified else 0,
             "failed_gates": ";".join(s.failed_gates),
             "close": s.close,
+            "industry_group": s.industry_group,
+            "industry_momentum": s.industry_momentum,
+            "industry_above_50ma": s.industry_above_50ma,
+            "industry_rank_pct": s.industry_rank_pct,
         })
     store_db.insert_signals_batch(conn, sig_dicts)
 

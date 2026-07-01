@@ -19,6 +19,8 @@ from scanner.core import (
     WEEKLY_MA_PERIOD,
     _sma_slope,
     _macd_bullish,
+    _industry_strength,
+    _attach_industry_rank_pct,
 )
 from scanner.data_store import resample_weekly
 from scanner.simulate import Signal
@@ -310,11 +312,30 @@ def generate_signals(
         print(f"[{day_num + 1}/{n_days}] {d}", end="\r")
         as_of_ts = pd.Timestamp(d)
 
-        # Slice market once per day
+        # Slice market once per day — all ETF reads below use sliced_market only (IND-06)
         sliced_market = {
             sym: df[df.index <= as_of_ts] for sym, df in full_market.items()
         }
         regime_str: Optional[str] = None
+
+        # Per-day ETF momentum dict for rank percentile (IND-04).
+        # Computed BEFORE the ticker sub-loop so rank covers all tickers on this day.
+        day_etf_scores: dict = {}
+        day_ind_cache: dict = {}  # ticker -> _industry_strength result for reuse
+        for _ticker in bars_by_ticker:
+            _q = quality_by_ticker.get(_ticker)
+            if _q is None:
+                continue
+            _ind_key = getattr(_q, "industry_key", None)
+            _ind_sec = getattr(_q, "sector", None)
+            _st = _industry_strength(_ind_key, _ind_sec, sliced_market)
+            day_ind_cache[_ticker] = _st
+            _etf = _st.get("industry_etf")
+            _mom = _st.get("industry_mom_20d")
+            if _etf is not None and _mom is not None and _etf not in day_etf_scores:
+                day_etf_scores[_etf] = _mom
+        import pandas as _pd
+        day_rank = _pd.Series(day_etf_scores).rank(pct=True) if len(day_etf_scores) >= 2 else _pd.Series(dtype=float)
 
         for ticker, full_daily in bars_by_ticker.items():
             # Slice daily once per ticker×day; reuse for both ctx and fn()
@@ -402,6 +423,14 @@ def generate_signals(
             except Exception:
                 pass
 
+            # Industry momentum — reuse per-day cached strength (sliced_market only)
+            _strength = day_ind_cache.get(ticker) or {"industry_etf": None, "industry_mom_20d": None, "industry_above_50ma": None}
+            _etf = _strength.get("industry_etf")
+            _rank_pct: Optional[float] = None
+            if _etf is not None and _etf in day_rank.index:
+                _rv = day_rank[_etf]
+                _rank_pct = float(_rv) if not _pd.isna(_rv) else None
+            _q_sig = quality_by_ticker.get(ticker)
             signals.append(Signal(
                 date=d,
                 ticker=ticker,
@@ -414,6 +443,10 @@ def generate_signals(
                 qualified=result.qualified,
                 failed_gates=list(result.failed_gates),
                 close=result.close,
+                industry_group=getattr(_q_sig, "industry", None),
+                industry_momentum=_strength.get("industry_mom_20d"),
+                industry_above_50ma=_strength.get("industry_above_50ma"),
+                industry_rank_pct=_rank_pct,
             ))
 
     print()  # newline after progress counter
