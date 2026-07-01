@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Industry Classification + ETF Data Layer** - Validate yfinance industry strings and Parquet-cache ~10 industry ETF tickers as the foundation for all momentum computation (completed 2026-07-01)
 - [x] **Phase 2: Industry Momentum Computation + Schema v7** - Compute 20-day momentum scores, above/below 50-day MA flag, and rank percentile on every signal without look-ahead bias; persist in dedicated schema v7 columns (completed 2026-07-01)
-- [ ] **Phase 3: Industry Display in CLI + Web UI** - Surface industry group name and momentum indicators in scan CLI output and the Angular signal table
+- [x] **Phase 3: Industry Display in CLI + Web UI** - Surface industry group name and momentum indicators in scan CLI output and the Angular signal table (completed 2026-07-01)
 - [ ] **Phase 4: Winner/Loser Characteristic Analysis** - Deliver pre-registered W/L breakdown in backtest reports with per-strategy tables, cell-size suppression, and sample-size abort
 
 ## Phase Details
@@ -77,12 +77,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. A signal where `industry_momentum` is NULL displays a dash (—) in the web UI, not 0.0 or an empty cell
   4. The TypeScript `Signal` interface includes `industry_group` and `industry_momentum` fields; `ng build` and `ng test` pass without errors
 
-**Plans**: 1/2 plans executed
+**Plans**: 2/2 plans complete
 **UI hint**: yes
 **Wave 1** *(both plans independent — no file overlap)*
 
 - [x] 03-01-PLAN.md — CLI slice: extend `_print_scan_results()` with Industry/Mom/Trend/Rank% columns + offline display test (IND-07)
-- [ ] 03-02-PLAN.md — Web UI slice: Signal interface fields + 4 Angular table columns (color-coded momentum, trend arrows, truncated industry name) + spec (IND-07)
+- [x] 03-02-PLAN.md — Web UI slice: Signal interface fields + 4 Angular table columns (color-coded momentum, trend arrows, truncated industry name) + spec (IND-07)
 
 ### Phase 4: Winner/Loser Characteristic Analysis
 
@@ -110,5 +110,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Industry Classification + ETF Data Layer | 2/2 | Complete    | 2026-07-01 |
 | 2. Industry Momentum Computation + Schema v7 | 2/2 | Complete    | 2026-07-01 |
-| 3. Industry Display in CLI + Web UI | 1/2 | In Progress|  |
+| 3. Industry Display in CLI + Web UI | 2/2 | Complete   | 2026-07-01 |
 | 4. Winner/Loser Characteristic Analysis | 0/0 | Not started | - |
