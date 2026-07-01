@@ -50,7 +50,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Requirements**: IND-02, IND-03, IND-04, IND-05, IND-06
 **Success Criteria** (what must be TRUE):
 
-  1. Running `scan.py scan` produces signals with non-null `industry_group` (TEXT) and `industry_momentum` (REAL) columns in scanner.db; `schema_version` reads 7
+  1. Running `scan.py scan` produces signals with non-null `industry_group` (TEXT) and `industry_momentum` (REAL) columns in scanner.db; `schema_version` reads 9
   2. Each signal row carries a 20-day ETF momentum score vs SPY (IND-02), an above/below 50-day MA boolean (IND-03), and an industry rank percentile among all industries in the scan run (IND-04)
   3. A backtest spot-check on a specific historical date confirms the ETF close price used equals the actual historical close on that date — no future prices consumed
   4. A ticker with no matched industry ETF stores NULL in `industry_momentum` (not 0.0); the NULL survives DB round-trip without coercion to any numeric value

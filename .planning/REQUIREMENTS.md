@@ -11,7 +11,7 @@
 - [x] **IND-02**: Every signal shows a 20-day momentum score (signed % outperformance vs SPY) for the stock's industry group ETF
 - [x] **IND-03**: Every signal shows an above/below 50-day MA boolean flag for the industry ETF (trending up or not)
 - [x] **IND-04**: Every signal shows an industry rank expressed as a top-N% percentile among all industry groups observed in the scan universe
-- [x] **IND-05**: Industry momentum fields are stored in dedicated columns (`industry_group`, `industry_momentum`) in the signals table under schema v7
+- [x] **IND-05**: Industry momentum fields are stored in dedicated columns (`industry_group`, `industry_momentum`) in the signals table under schema v9
 - [x] **IND-06**: Industry momentum is computed without look-ahead bias — ETF price data is anchored to the signal's `as_of` date using the same sliced-market pattern as SPY in the backtest loop
 - [ ] **IND-07**: Industry momentum fields appear in scan CLI output and are visible in the web UI signal table
 
