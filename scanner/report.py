@@ -19,6 +19,19 @@ CONF_LEVELS = ["LOW", "MEDIUM", "HIGH"]
 MIN_BUCKET_N = 20
 MIN_ATTRIBUTION_N = 30
 
+# ── Phase 4 — W/L characteristic analysis (pre-registered; WLA-06 anti-cherry-pick guard) ──
+# This list is the sole authoritative feature set. Committed to source before any results viewed.
+WL_FEATURES = [
+    'RSI at entry',
+    'RVOL',
+    'Pullback depth %',
+    'ATR multiple',
+    'Industry momentum',
+    'Pct to 52w high',
+]
+WL_MIN_TOTAL = 200   # total qualified trades below this → abort analysis (WLA-05)
+WL_MIN_BUCKET = 50   # winner_n OR loser_n below this → suppress strategy (WLA-05)
+
 # ── E6.3 bias disclosure (static text) ───────────────────────────────────────
 
 _BIAS_SURVIVORSHIP = (
@@ -37,6 +50,155 @@ _BIAS_LOOK_AHEAD = (
 def _active_trades(trades: list[Trade]) -> list[Trade]:
     """Qualified trades with a valid R (excludes gap-skips and incomplete)."""
     return [t for t in trades if t.qualified and t.r_multiple is not None]
+
+
+# ── Phase 4 — W/L characteristic analysis helpers ─────────────────────────────
+
+def _safe_median(values: list) -> Optional[float]:
+    """Compute median of a list, skipping None values. Returns None if no valid data."""
+    if not values:
+        return None
+    non_none = sorted(v for v in values if v is not None)
+    if not non_none:
+        return None
+    n = len(non_none)
+    mid = n // 2
+    if n % 2 == 1:
+        return float(non_none[mid])
+    return float((non_none[mid - 1] + non_none[mid]) / 2)
+
+
+def _extract_wl_metric(metric: str, trades: list, sig_by_key: dict) -> list:
+    """Extract non-None metric values from trades, looking up signals via 3-tuple key.
+
+    'ATR multiple' is sourced directly from t.target_atr; all others require a Signal lookup.
+    Returns a list of floats (None values excluded).
+    """
+    values = []
+    for t in trades:
+        key = (str(t.signal_date), t.ticker, t.strategy)
+        sig = sig_by_key.get(key)
+
+        if metric == 'ATR multiple':
+            val = t.target_atr
+        elif sig is None:
+            val = None
+        elif metric == 'RSI at entry':
+            val = sig.rsi_entry
+        elif metric == 'RVOL':
+            val = sig.rvol
+        elif metric == 'Pullback depth %':
+            val = sig.pullback_depth_pct
+        elif metric == 'Industry momentum':
+            val = sig.industry_momentum
+        elif metric == 'Pct to 52w high':
+            val = sig.pct_to_52w_high
+        else:
+            val = None
+
+        if val is not None:
+            values.append(float(val))
+    return values
+
+
+def _fmt_wl_value(metric: str, v: Optional[float]) -> str:
+    """Format a W/L metric value for the markdown table (mirrors UI-SPEC Format Rules)."""
+    if v is None:
+        return "—"  # em dash
+    if metric == 'RSI at entry':
+        return f"{v:.1f}"
+    if metric == 'RVOL':
+        return f"{v:.2f}x"
+    if metric == 'Pullback depth %':
+        sign = '+' if v >= 0 else ''
+        return f"{sign}{v:.1f}%"
+    if metric == 'ATR multiple':
+        return f"{v:.2f}"
+    if metric == 'Industry momentum':
+        sign = '+' if v >= 0 else ''
+        return f"{sign}{v:.1f}%"
+    if metric == 'Pct to 52w high':
+        return f"{v:.1f}%"
+    return f"{v:.2f}"
+
+
+def wl_characteristic_analysis(signals: list, qualified_trades: list) -> dict:
+    """Pre-registered winner/loser characteristic analysis over 6 entry-time metrics.
+
+    WLA-01: produces wl_analysis dict for >= WL_MIN_TOTAL qualified trades.
+    WLA-02: metric rows are exactly WL_FEATURES in order; no additions at run time.
+    WLA-03: analysis is grouped per strategy; pullback and breakout are never combined.
+    WLA-04: 'Industry momentum' is always one of the 6 rows in a non-suppressed strategy.
+    WLA-05: bucket < WL_MIN_BUCKET → suppressed; total < WL_MIN_TOTAL → aborted.
+    WLA-06: WL_FEATURES is a pre-registered constant committed before results are viewed.
+    """
+    active = _active_trades(qualified_trades)
+    total = len(active)
+
+    if total < WL_MIN_TOTAL:
+        return {
+            "total_qualified": total,
+            "aborted": True,
+            "abort_reason": (
+                f"Insufficient data — fewer than 200 qualified trades (n={total}). "
+                "W/L analysis suppressed."
+            ),
+            "strategies": [],
+        }
+
+    sig_by_key = {(str(s.date), s.ticker, s.strategy): s for s in signals}
+    strategies_result = []
+
+    for strat in sorted(set(t.strategy for t in active)):
+        strat_trades = [t for t in active if t.strategy == strat]
+        winners = [t for t in strat_trades if t.r_multiple > 0]
+        losers = [t for t in strat_trades if t.r_multiple <= 0]
+        w_n = len(winners)
+        l_n = len(losers)
+
+        if w_n < WL_MIN_BUCKET or l_n < WL_MIN_BUCKET:
+            strategies_result.append({
+                "strategy": strat,
+                "winner_n": w_n,
+                "loser_n": l_n,
+                "suppressed": True,
+                "suppression_reason": (
+                    f"Suppressed — fewer than 50 trades in winner or loser bucket "
+                    f"(winners: {w_n}, losers: {l_n})."
+                ),
+                "rows": [],
+            })
+            continue
+
+        rows = []
+        for metric in WL_FEATURES:
+            w_vals = _extract_wl_metric(metric, winners, sig_by_key)
+            l_vals = _extract_wl_metric(metric, losers, sig_by_key)
+            w_med = _safe_median(w_vals)
+            l_med = _safe_median(l_vals)
+            delta = round(w_med - l_med, 4) if (w_med is not None and l_med is not None) else None
+            rows.append({
+                "metric": metric,
+                "winners_median": round(w_med, 4) if w_med is not None else None,
+                "losers_median": round(l_med, 4) if l_med is not None else None,
+                "delta": delta,
+            })
+
+        strategies_result.append({
+            "strategy": strat,
+            "winner_n": w_n,
+            "loser_n": l_n,
+            "suppressed": False,
+            "suppression_reason": None,
+            "rows": rows,
+        })
+
+    return {
+        "total_qualified": total,
+        "aborted": False,
+        "abort_reason": None,
+        "strategies": strategies_result,
+    }
 
 
 # ── E8.1 — Core metrics ───────────────────────────────────────────────────────
@@ -410,6 +572,7 @@ def render_report(
 
     q_exp = metrics.get("expectancy_r") or 0.0
     attribution = gate_attribution(all_trades, q_exp)
+    wl_result = wl_characteristic_analysis(signals, qualified_trades)
 
     # Ambiguous-bar warning (E7.1 spec: >15% triggers warning)
     amb_pct = metrics.get("ambiguous_bar_pct", 0.0)
@@ -547,6 +710,32 @@ def render_report(
             lines.append(f"| {b['bucket']} | {b['n']} | {hr} | {ex} |")
         lines.append("")
 
+    # Phase 4 — W/L characteristic analysis section
+    lines += ["\n## Winner/Loser Characteristic Analysis (Pre-registered)\n"]
+    if wl_result['aborted']:
+        lines.append(f"> **Warning:** {wl_result['abort_reason']}")
+    else:
+        for s in wl_result['strategies']:
+            if s['suppressed']:
+                lines += [f"\n### {s['strategy'].title()}\n"]
+                lines.append(f"> **Warning:** {s['suppression_reason']}")
+            else:
+                lines += [
+                    f"\n### {s['strategy'].title()} "
+                    f"(winners: {s['winner_n']}, losers: {s['loser_n']})\n"
+                ]
+                lines += [
+                    "| Metric | Winners | Losers | Delta |",
+                    "|--------|---------|--------|-------|",
+                ]
+                for row in s['rows']:
+                    w_fmt = _fmt_wl_value(row['metric'], row['winners_median'])
+                    l_fmt = _fmt_wl_value(row['metric'], row['losers_median'])
+                    d_fmt = _fmt_wl_value(row['metric'], row['delta'])
+                    lines.append(f"| {row['metric']} | {w_fmt} | {l_fmt} | {d_fmt} |")
+                lines.append("")
+    lines.append("")
+
     if attribution:
         lines += ["\n## Gate Attribution (near-miss analysis)\n"]
         lines += [
@@ -621,6 +810,7 @@ def render_report(
         "stop_out_forensics": sof,
         "target_r_buckets": tr_buckets,
         "target_atr_buckets": ta_buckets,
+        "wl_analysis": wl_result,
         "biases": [_BIAS_SURVIVORSHIP, _BIAS_LOOK_AHEAD],
         "run_meta": run_meta or {},
         "trades": trades_list,
