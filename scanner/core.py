@@ -62,6 +62,72 @@ SECTOR_ETF_MAP = {
     "Basic Materials":        "XLB",
 }
 
+# Industry-level ETF proxy map (industryKey slug -> ETF ticker).
+# Two-tier resolution: check this map first; fall back to SECTOR_ETF_MAP.
+# Sector-level fallback entries (e.g. 'oil-gas-integrated' -> 'XLE') are
+# explicit entries here — the map is the single source of truth (D-01, D-03).
+INDUSTRY_ETF_MAP: dict[str, str] = {
+    # ── Technology ────────────────────────────────────────────────────────
+    "semiconductors":                    "XSD",
+    "semiconductor-equipment-materials": "XSD",
+    "software-infrastructure":           "XSW",
+    "software-application":              "XSW",
+    "information-technology-services":   "XSW",
+    # ── Healthcare ────────────────────────────────────────────────────────
+    "biotechnology":                       "XBI",
+    "drug-manufacturers-general":          "XPH",
+    "drug-manufacturers-specialty-generic":"XPH",
+    "medical-devices":                     "XHE",
+    "medical-instruments-supplies":        "XHE",
+    "healthcare-plans":                    "XHS",
+    "medical-care-facilities":             "XHS",
+    # ── Financial Services ────────────────────────────────────────────────
+    "banks-regional":                    "KRE",
+    "banks-diversified":                 "KBE",
+    "insurance-property-casualty":       "KIE",
+    "insurance-life":                    "KIE",
+    "insurance-diversified":             "KIE",
+    "capital-markets":                   "KCE",
+    "financial-data-stock-exchanges":    "KCE",
+    # ── Consumer Cyclical ─────────────────────────────────────────────────
+    "residential-construction": "XHB",
+    "specialty-retail":         "XRT",
+    "department-stores":        "XRT",
+    "internet-retail":          "XRT",
+    # ── Industrials ───────────────────────────────────────────────────────
+    "aerospace-defense": "XAR",
+    # ── Energy ────────────────────────────────────────────────────────────
+    "oil-gas-e-p":               "XOP",
+    "oil-gas-integrated":        "XLE",   # sector-fallback encoded in map (D-03)
+    "oil-gas-equipment-services":"XES",
+    "oil-gas-midstream":         "XLE",   # sector-fallback encoded in map (D-03)
+    # ── Basic Materials ───────────────────────────────────────────────────
+    "gold":               "GDX",
+    "specialty-chemicals":"XLB",          # sector-fallback encoded in map (D-03)
+    "steel":              "XME",
+    "copper":             "XME",
+    "aluminum":           "XME",
+}
+
+
+def resolve_industry_etf(industry_key: Optional[str], sector: Optional[str]) -> Optional[str]:
+    """Return the best ETF proxy for a stock's industry/sector classification.
+
+    Two-step lookup chain (D-07):
+    1. Direct hit in INDUSTRY_ETF_MAP.
+    2. Fall through to SECTOR_ETF_MAP keyed by sector.
+
+    Special case (D-06): if industry_key is None, return None immediately —
+    no sector fallback is applied when the industry classification is absent.
+    """
+    if industry_key is None:
+        return None
+    etf = INDUSTRY_ETF_MAP.get(industry_key)
+    if etf is not None:
+        return etf
+    return SECTOR_ETF_MAP.get(sector)
+
+
 # ── GateLog (E2.1) ────────────────────────────────────────────────────────────
 
 class GateLog:
