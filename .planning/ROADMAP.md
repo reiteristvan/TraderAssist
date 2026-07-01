@@ -77,8 +77,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. A signal where `industry_momentum` is NULL displays a dash (—) in the web UI, not 0.0 or an empty cell
   4. The TypeScript `Signal` interface includes `industry_group` and `industry_momentum` fields; `ng build` and `ng test` pass without errors
 
-**Plans**: TBD
+**Plans**: 2 plans
 **UI hint**: yes
+**Wave 1** *(both plans independent — no file overlap)*
+
+- [ ] 03-01-PLAN.md — CLI slice: extend `_print_scan_results()` with Industry/Mom/Trend/Rank% columns + offline display test (IND-07)
+- [ ] 03-02-PLAN.md — Web UI slice: Signal interface fields + 4 Angular table columns (color-coded momentum, trend arrows, truncated industry name) + spec (IND-07)
 
 ### Phase 4: Winner/Loser Characteristic Analysis
 
@@ -106,5 +110,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Industry Classification + ETF Data Layer | 2/2 | Complete    | 2026-07-01 |
 | 2. Industry Momentum Computation + Schema v7 | 2/2 | Complete    | 2026-07-01 |
-| 3. Industry Display in CLI + Web UI | 0/0 | Not started | - |
+| 3. Industry Display in CLI + Web UI | 0/2 | Planned | - |
 | 4. Winner/Loser Characteristic Analysis | 0/0 | Not started | - |
