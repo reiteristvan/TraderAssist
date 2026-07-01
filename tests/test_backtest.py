@@ -55,8 +55,9 @@ def _make_quality() -> QualityInfo:
 
 
 def _make_market(spy_bars: pd.DataFrame) -> dict[str, pd.DataFrame]:
-    from scanner.core import SECTOR_ETF_MAP
-    return {"SPY": spy_bars, **{etf: spy_bars for etf in SECTOR_ETF_MAP.values()}}
+    from scanner.core import INDUSTRY_ETF_MAP, SECTOR_ETF_MAP
+    all_etfs = set(SECTOR_ETF_MAP.values()) | set(INDUSTRY_ETF_MAP.values())
+    return {"SPY": spy_bars, **{etf: spy_bars for etf in all_etfs}}
 
 
 # ── _days_to_earn_from_list ────────────────────────────────────────────────────

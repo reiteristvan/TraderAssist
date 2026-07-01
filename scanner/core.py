@@ -111,15 +111,7 @@ INDUSTRY_ETF_MAP: dict[str, str] = {
 
 
 def resolve_industry_etf(industry_key: Optional[str], sector: Optional[str]) -> Optional[str]:
-    """Return the best ETF proxy for a stock's industry/sector classification.
-
-    Two-step lookup chain (D-07):
-    1. Direct hit in INDUSTRY_ETF_MAP.
-    2. Fall through to SECTOR_ETF_MAP keyed by sector.
-
-    Special case (D-06): if industry_key is None, return None immediately —
-    no sector fallback is applied when the industry classification is absent.
-    """
+    # None industry_key returns None immediately — no sector fallback (D-06).
     if industry_key is None:
         return None
     etf = INDUSTRY_ETF_MAP.get(industry_key)

@@ -257,6 +257,19 @@ def test_get_ath_point_in_time(tmp_path, monkeypatch):
     assert abs(ath_after - 50.0) < 0.01
 
 
+# ── _MARKET_SYMBOLS sync guard ────────────────────────────────────────────────
+
+def test_market_symbols_covers_all_industry_etfs():
+    """Every ETF value in INDUSTRY_ETF_MAP must appear in _MARKET_SYMBOLS.
+
+    Prevents silent NaN in Phase 2 momentum lookup when a new industryKey is
+    added to the map without a matching entry in the static symbol list.
+    """
+    from scanner.core import INDUSTRY_ETF_MAP
+    missing = set(INDUSTRY_ETF_MAP.values()) - set(ds._MARKET_SYMBOLS)
+    assert not missing, f"ETFs in INDUSTRY_ETF_MAP missing from _MARKET_SYMBOLS: {missing}"
+
+
 # ── E1.3 tests ────────────────────────────────────────────────────────────────
 
 def test_market_data_zero_fetches(tmp_path, monkeypatch):

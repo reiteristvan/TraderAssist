@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from scanner.core import SECTOR_ETF_MAP
+from scanner.core import INDUSTRY_ETF_MAP, SECTOR_ETF_MAP
 
 
 # ── E11.1 — block network in all tests ───────────────────────────────────────
@@ -156,8 +156,9 @@ def make_market_data(seed=2):
     xlk = 180 * (1 + 0.0010) ** np.arange(idx_n)
     spy_df = ohlcv_from_close(spy, np.full(idx_n, 5_000_000), seed=seed)
     xlk_df = ohlcv_from_close(xlk, np.full(idx_n, 3_000_000), seed=seed + 1)
+    all_etfs = set(SECTOR_ETF_MAP.values()) | set(INDUSTRY_ETF_MAP.values())
     data = {"SPY": spy_df}
-    for etf in SECTOR_ETF_MAP.values():
+    for etf in all_etfs:
         data[etf] = xlk_df if etf == "XLK" else spy_df
     return data
 
