@@ -1,20 +1,14 @@
 ---
-status: testing
+status: complete
 phase: 02-industry-momentum-computation-schema-v7
 source: [02-VERIFICATION.md]
 started: 2026-07-01T00:00:00Z
-updated: 2026-07-01T00:00:00Z
+updated: 2026-07-01T11:00:00Z
 ---
 
 ## Current Test
 
-number: 1
-name: Live Scan DB Migration + Industry Column Population
-expected: |
-  schema_version = 9 in scanner.db;
-  mapped tickers show non-null industry_group and signed industry_momentum;
-  unmapped tickers show SQL NULL (not 0.0) in industry_momentum
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -37,7 +31,7 @@ expected: |
   schema_version = 9;
   mapped tickers: non-null industry_group (e.g. "Semiconductors") and signed float in industry_momentum;
   any unmapped ticker: SQL NULL (not 0.0) in industry_momentum and industry_group
-result: [pending]
+result: pass
 
 ### 2. Backtest Historical Spot-Check (IND-06 Real-Data Confirmation)
 
@@ -55,14 +49,14 @@ expected: |
   Stored industry_momentum matches manually-computed 20-day ROC from actual
   historical ETF closes within floating-point rounding.
   Confirms no future ETF prices consumed (IND-06 real-data validation).
-result: [pending]
+result: pass
 
 ## Summary
 
 total: 2
-passed: 0
+passed: 2
 issues: 0
-pending: 2
+pending: 0
 skipped: 0
 blocked: 0
 

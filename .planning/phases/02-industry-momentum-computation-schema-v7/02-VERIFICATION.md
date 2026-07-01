@@ -1,18 +1,20 @@
 ---
 phase: 02-industry-momentum-computation-schema-v7
 verified: 2026-07-01T00:00:00Z
-status: human_needed
+status: passed
 score: 4/5 must-haves verified
 behavior_unverified: 1
 overrides_applied: 0
 re_verification: false
 gaps_resolved:
+
   - truth: "schema_version reads 7 (ROADMAP Success Criterion #1 stated version)"
     resolution: >
       ROADMAP.md Phase 2 SC#1 updated from 'reads 7' to 'reads 9'; REQUIREMENTS.md
       IND-05 updated from 'schema v7' to 'schema v9'. Both documents now match the
       implementation. Gap closed 2026-07-01.
 behavior_unverified_items:
+
   - truth: >
       A backtest spot-check on a specific historical date confirms the ETF close price
       used equals the actual historical close on that date — no future prices consumed
@@ -31,6 +33,7 @@ behavior_unverified_items:
       synthetic data. The specific historical-date accuracy check against real yfinance
       prices requires a network-connected run and manual cross-reference.
 human_verification:
+
   - test: >
       Live scan after migration: run
       `python scan.py refresh --file universes/sample.txt` then
@@ -47,6 +50,7 @@ human_verification:
       first write_live_signals call). A real network-connected scan is needed to confirm
       migration runs correctly against the production DB and that yfinance industry
       classification returns non-null values for sample universe tickers.
+
   - test: >
       Backtest historical spot-check (IND-06 with real data):
       Run `python scan.py backtest --strategy pullback --file universes/sample.txt
