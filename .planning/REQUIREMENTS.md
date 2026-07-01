@@ -17,12 +17,12 @@
 
 ### Winner/Loser Analysis
 
-- [ ] **WLA-01**: Backtest reports include a winner/loser characteristic analysis section showing median entry-time metric values for winners vs losers
-- [ ] **WLA-02**: Analysis covers at minimum 6 entry metrics: RSI at entry, volume ratio (RVOL), pullback depth %, ATR multiple, industry momentum score, and pct to 52-week high
-- [ ] **WLA-03**: Analysis is produced separately for pullback and breakout strategies (not combined)
-- [ ] **WLA-04**: Industry momentum is included as one of the discriminating dimensions in the winner/loser analysis
-- [ ] **WLA-05**: Analysis includes a cell-size gate — any bucket with fewer than 50 trades displays a warning rather than a potentially spurious finding
-- [ ] **WLA-06**: The feature list analyzed is pre-registered in code (fixed list, not exploratory) to prevent multiple-comparisons overfitting
+- [x] **WLA-01**: Backtest reports include a winner/loser characteristic analysis section showing median entry-time metric values for winners vs losers
+- [x] **WLA-02**: Analysis covers at minimum 6 entry metrics: RSI at entry, volume ratio (RVOL), pullback depth %, ATR multiple, industry momentum score, and pct to 52-week high
+- [x] **WLA-03**: Analysis is produced separately for pullback and breakout strategies (not combined)
+- [x] **WLA-04**: Industry momentum is included as one of the discriminating dimensions in the winner/loser analysis
+- [x] **WLA-05**: Analysis includes a cell-size gate — any bucket with fewer than 50 trades displays a warning rather than a potentially spurious finding
+- [x] **WLA-06**: The feature list analyzed is pre-registered in code (fixed list, not exploratory) to prevent multiple-comparisons overfitting
 
 ## v2 Requirements
 
@@ -62,12 +62,12 @@
 | IND-05 | Phase 2 | Complete |
 | IND-06 | Phase 2 | Complete |
 | IND-07 | Phase 3 | Complete |
-| WLA-01 | Phase 4 | Pending |
-| WLA-02 | Phase 4 | Pending |
-| WLA-03 | Phase 4 | Pending |
-| WLA-04 | Phase 4 | Pending |
-| WLA-05 | Phase 4 | Pending |
-| WLA-06 | Phase 4 | Pending |
+| WLA-01 | Phase 4 | Complete |
+| WLA-02 | Phase 4 | Complete |
+| WLA-03 | Phase 4 | Complete |
+| WLA-04 | Phase 4 | Complete |
+| WLA-05 | Phase 4 | Complete |
+| WLA-06 | Phase 4 | Complete |
 
 **Coverage:**
 

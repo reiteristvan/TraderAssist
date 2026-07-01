@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: winner-loser-characteristic-analysis
 status: executing
-stopped_at: Phase 4 UI-SPEC approved
-last_updated: "2026-07-01T19:02:29.665Z"
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-07-01T19:37:13.269Z"
 last_activity: 2026-07-01
-last_activity_desc: Phase 03 UAT complete
+last_activity_desc: Phase 04 execution started
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 6
-  completed_plans: 6
+  total_plans: 8
+  completed_plans: 7
   percent: 75
 ---
 
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-30)
 
 **Core value:** Surface high-quality swing trade setups where the signal has a genuine edge — not just gate compliance.
-**Current focus:** Phase 03 — industry-display-in-cli-web-ui
+**Current focus:** Phase 04 — winner-loser-characteristic-analysis
 
 ## Current Position
 
-Phase: 04 (winner-loser-characteristic-analysis) — PLANNING
-Plan: 0 of TBD
+Phase: 04 (winner-loser-characteristic-analysis) — EXECUTING
+Plan: 2 of 2
 Status: Ready to execute
-Last activity: 2026-07-01 — Phase 03 UAT complete
+Last activity: 2026-07-01 — Phase 04 execution started
 
 Progress: [██████████] 100%
 
@@ -57,6 +57,7 @@ Progress: [██████████] 100%
 | Phase 02 P02 | 15m | 3 tasks | 4 files |
 | Phase 03 P01 | 2 | 2 tasks | 2 files |
 | Phase 03 P02 | 5m | 2 tasks | 5 files |
+| Phase 04 P01 | 4m | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,9 @@ Progress: [██████████] 100%
 - [Phase ?]: backtest ETF rank is per-day from sliced_market (IND-06); _attach_industry_rank_pct is a named post-loop helper; Signal gains 4 Optional industry fields
 - [Phase ?]: [03-01] industry_above_50ma uses integer-equality check (==1/==0 not truthy)
 - [Phase ?]: [03-01] _print_scan_results uses in df.columns guard for each industry column — backward compatible with pre-Phase-2 frames
+- [Phase ?]: WL_FEATURES committed to source code before any backtest run viewed — anti-cherry-picking guard (WLA-06)
+- [Phase ?]: Breakout pct_to_52w_high converted from ratio to distance-below-high via 100-ratio in backtest loop
+- [Phase ?]: 3-tuple sig_by_key in wl_characteristic_analysis supports mixed-strategy runs
 
 ### Pending Todos
 
@@ -97,6 +101,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-01T18:21:06.406Z
-Stopped at: Phase 4 UI-SPEC approved
-Resume file: .planning/phases/04-winner-loser-characteristic-analysis/04-UI-SPEC.md
+Last session: 2026-07-01T19:37:13.260Z
+Stopped at: Completed 04-01-PLAN.md
+Resume file: None
