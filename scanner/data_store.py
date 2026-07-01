@@ -24,8 +24,25 @@ _log = logging.getLogger("scanner.data")
 _CACHE_DIR = Path("data/ohlcv")
 _MIN_ROWS = 220
 _MARKET_SYMBOLS = [
+    # Broad market + 11 sector ETFs (original set)
     "SPY", "XLK", "XLF", "XLV", "XLY", "XLC",
     "XLI", "XLP", "XLE", "XLU", "XLRE", "XLB",
+    # Industry ETFs — deduplicated union with INDUSTRY_ETF_MAP values (D-02).
+    # XLE and XLB appear in both maps; they are NOT re-added here.
+    # Technology
+    "XSD", "XSW",
+    # Healthcare
+    "XBI", "XPH", "XHE", "XHS",
+    # Financial Services
+    "KRE", "KBE", "KIE", "KCE",
+    # Consumer Cyclical
+    "XHB", "XRT",
+    # Industrials
+    "XAR",
+    # Energy
+    "XOP", "XES",
+    # Basic Materials
+    "GDX", "XME",
 ]
 
 
