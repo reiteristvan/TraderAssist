@@ -221,17 +221,20 @@ def _print_scan_results(df) -> None:
         # D-03: industry_above_50ma → arrow symbol, NULL → em dash
         # IMPORTANT: use explicit equality (== 1 / == 0), NOT truthy check.
         # Integer 0 means "below 50MA" and is a valid state, not NULL.
+        # Explicit None/NaN guard required before == comparison to avoid TypeError
+        # when the column carries pandas nullable Int64 dtype with pd.NA.
         if "industry_above_50ma" in display_df.columns:
             display_df["Trend"] = display_df["industry_above_50ma"].apply(
-                lambda v: "↑" if v == 1 else ("↓" if v == 0 else "—")
+                lambda v: "—" if v is None or pd.isna(v) else ("↑" if v == 1 else ("↓" if v == 0 else "—"))
             )
         else:
             display_df["Trend"] = "—"
 
         # D-04: industry_rank_pct → "Top N%", NULL/NaN → em dash
+        # rank(pct=True) stores values in (0, 1]; multiply by 100 to get percentage.
         if "industry_rank_pct" in display_df.columns:
             display_df["Rank%"] = display_df["industry_rank_pct"].apply(
-                lambda v: f"Top {int(round(v))}%" if v is not None and not pd.isna(v) else "—"
+                lambda v: f"Top {int(round(v * 100))}%" if v is not None and not pd.isna(v) else "—"
             )
         else:
             display_df["Rank%"] = "—"
@@ -564,15 +567,21 @@ def _process_diagnose_job(conn, job: dict) -> str:
         "close": row.get("close"),
         "gate_detail_json": _json.dumps(gate_detail),
         "ath_zone": row.get("ath_zone"),
+        "industry_group": row.get("industry_group"),
+        "industry_momentum": row.get("industry_momentum"),
+        "industry_above_50ma": row.get("industry_above_50ma"),
+        "industry_rank_pct": row.get("industry_rank_pct"),
     }
     cur = conn.execute(
         """INSERT OR REPLACE INTO signals
            (date, ticker, strategy, source, run_id, score, confidence,
             stop, target, atr, qualified, failed_gates, close,
-            gate_detail_json, ath_zone)
+            gate_detail_json, ath_zone,
+            industry_group, industry_momentum, industry_above_50ma, industry_rank_pct)
            VALUES (:date, :ticker, :strategy, :source, :run_id, :score, :confidence,
                    :stop, :target, :atr, :qualified, :failed_gates, :close,
-                   :gate_detail_json, :ath_zone)""",
+                   :gate_detail_json, :ath_zone,
+                   :industry_group, :industry_momentum, :industry_above_50ma, :industry_rank_pct)""",
         sig,
     )
     conn.commit()

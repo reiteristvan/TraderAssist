@@ -74,6 +74,6 @@ export class CandidatesComponent implements OnInit {
 
   industryRank(s: Signal): string {
     if (s.industry_rank_pct == null) return '—';
-    return Math.round(s.industry_rank_pct).toString();
+    return Math.round(s.industry_rank_pct * 100).toString();
   }
 }

@@ -75,8 +75,8 @@ describe('CandidatesComponent', () => {
   });
 
   describe('industryRank formatter', () => {
-    it('returns integer string for non-null rank', () => {
-      expect(component.industryRank(makeSignal({ industry_rank_pct: 18 }))).toBe('18');
+    it('returns integer string for non-null rank (fractional input from rank(pct=True))', () => {
+      expect(component.industryRank(makeSignal({ industry_rank_pct: 0.18 }))).toBe('18');
     });
 
     it('returns em dash for null rank', () => {
@@ -84,7 +84,7 @@ describe('CandidatesComponent', () => {
     });
 
     it('rounds fractional rank', () => {
-      expect(component.industryRank(makeSignal({ industry_rank_pct: 18.7 }))).toBe('19');
+      expect(component.industryRank(makeSignal({ industry_rank_pct: 0.187 }))).toBe('19');
     });
   });
 
@@ -95,7 +95,7 @@ describe('CandidatesComponent', () => {
           industry_group: 'Semiconductors',
           industry_momentum: 5.2,
           industry_above_50ma: 1,
-          industry_rank_pct: 18
+          industry_rank_pct: 0.18
         }),
         makeSignal({
           industry_group: null,

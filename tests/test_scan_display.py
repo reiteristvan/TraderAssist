@@ -63,14 +63,14 @@ def test_print_scan_results_industry_columns(capsys):
             industry_group="Semiconductors & Semiconductor Equipment Industry",
             industry_momentum=5.2,
             industry_above_50ma=1,
-            industry_rank_pct=18.0,
+            industry_rank_pct=0.18,  # rank(pct=True) stores fractions in (0, 1]
         ),
         _make_row(
             ticker="BAC",
             industry_group="Banks Regional",
             industry_momentum=-3.1,
             industry_above_50ma=0,
-            industry_rank_pct=62.0,
+            industry_rank_pct=0.62,  # rank(pct=True) stores fractions in (0, 1]
         ),
         _make_row(
             ticker="XYZ",
@@ -110,7 +110,5 @@ def test_print_scan_results_industry_columns(capsys):
 
     # Raw stored values must NOT leak for the NULL row
     assert "None" not in out, "Raw 'None' text leaked for NULL industry field"
-    # 0.0 is the raw float representation — it must NOT appear as a literal in output
     # (Note: 0 as integer is a valid industry_above_50ma value, but NaN/None → '—')
-    # We check that '0.0' does not appear (NaN formatted as float would look like nan/0.0)
     assert "nan" not in out.lower(), "Raw 'nan' text leaked for NULL industry field"
