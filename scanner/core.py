@@ -443,9 +443,12 @@ def _make_quality_info(ticker: str) -> QualityInfo:
     debt_equity  = info.get("debtToEquity")
     sector       = info.get("sector")
     float_shares = info.get("floatShares")
+    industry     = info.get("industry")        # human-readable name (D-04)
+    industry_key = info.get("industryKey")     # slug for ETF lookup; note capital K (D-04)
     return QualityInfo(
         profitable=profitable, market_cap=market_cap, debt_equity=debt_equity,
         sector=sector, float_shares=float_shares,
+        industry=industry, industry_key=industry_key,
     )
 
 
