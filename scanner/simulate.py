@@ -31,6 +31,11 @@ class Signal:
     industry_momentum: Optional[float] = None
     industry_above_50ma: Optional[bool] = None
     industry_rank_pct: Optional[float] = None
+    # Phase 4 — W/L analysis entry-time metrics (all Optional; None = not available)
+    rsi_entry: Optional[float] = None
+    rvol: Optional[float] = None
+    pullback_depth_pct: Optional[float] = None  # None for breakout signals
+    pct_to_52w_high: Optional[float] = None
 
 
 @dataclass

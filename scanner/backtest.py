@@ -431,6 +431,29 @@ def generate_signals(
                 _rv = day_rank[_etf]
                 _rank_pct = float(_rv) if not _pd.isna(_rv) else None
             _q_sig = quality_by_ticker.get(ticker)
+            # Phase 4 — W/L entry-time metric extraction (strategy-polymorphic via getattr)
+            _is_breakout_result = getattr(result, 'vol_ratio', None) is not None
+            _rsi = getattr(result, 'rsi', None)
+            _rvol = getattr(result, 'vol_ratio', None)   # BreakoutResult only
+            if _rvol is None and precomp_t is not None:
+                # Pullback: compute RVOL from precomp vol_sma50 series
+                _vol_sma50 = float(precomp_t.vol_sma50.asof(as_of_ts))
+                _cur_vol = float(daily_sliced['Volume'].iloc[-1])
+                if _vol_sma50 > 0 and not pd.isna(_vol_sma50) and not pd.isna(_cur_vol):
+                    _rvol = _cur_vol / _vol_sma50
+            _pullback_depth = getattr(result, 'pullback_depth_pct', None)   # PullbackResult only
+            # pct_to_52w_high: standardize to "% distance below 52w high" (positive = farther below)
+            _pct_high: Optional[float] = None
+            if _is_breakout_result:
+                # Breakout: convert native ratio format (close/high*100) to distance format
+                _raw = getattr(result, 'pct_to_52w_high', None)
+                if _raw is not None:
+                    _pct_high = 100.0 - _raw
+            elif precomp_t is not None:
+                # Pullback: pct below 52w high = (high_52w - close) / high_52w * 100
+                _h52 = precomp_t.high_52w.asof(as_of_ts)
+                if not pd.isna(_h52) and float(_h52) > 0:
+                    _pct_high = (float(_h52) - result.close) / float(_h52) * 100
             signals.append(Signal(
                 date=d,
                 ticker=ticker,
@@ -447,6 +470,10 @@ def generate_signals(
                 industry_momentum=_strength.get("industry_mom_20d"),
                 industry_above_50ma=_strength.get("industry_above_50ma"),
                 industry_rank_pct=_rank_pct,
+                rsi_entry=_rsi,
+                rvol=_rvol,
+                pullback_depth_pct=_pullback_depth,
+                pct_to_52w_high=_pct_high,
             ))
 
     print()  # newline after progress counter
