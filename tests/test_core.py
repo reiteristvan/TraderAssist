@@ -213,6 +213,90 @@ def test_quality_info_no_classification_is_none_not_empty_string():
     assert qi.industry_key is None
 
 
+# ── _industry_strength tests (Phase 2 — RED baseline) ────────────────────────
+
+def test_industry_strength_basic():
+    """_industry_strength returns correct 20-day ROC when ETF has >= 21 bars."""
+    from scanner.core import _industry_strength
+    # 60 bars; Close[-1]=60, Close[-21]=40 -> mom = (60/40-1)*100 = 50.0
+    etf_closes = list(range(1, 61))
+    spy_closes = list(range(1, 61))
+    market_data = {
+        "XSD": pd.DataFrame({"Close": [float(c) for c in etf_closes]}),
+        "SPY": pd.DataFrame({"Close": [float(c) for c in spy_closes]}),
+    }
+    result = _industry_strength("semiconductors", "Technology", market_data)
+    assert result["industry_etf"] == "XSD"
+    expected_mom = (etf_closes[-1] / etf_closes[-21] - 1) * 100
+    assert result["industry_mom_20d"] == pytest.approx(expected_mom)
+
+
+def test_industry_strength_no_etf_returns_none():
+    """industry_key=None returns all-None dict."""
+    from scanner.core import _industry_strength
+    market_data = {
+        "XSD": pd.DataFrame({"Close": [float(c) for c in range(1, 61)]}),
+        "SPY": pd.DataFrame({"Close": [float(c) for c in range(1, 61)]}),
+    }
+    result = _industry_strength(None, "Technology", market_data)
+    assert result["industry_etf"] is None
+    assert result["industry_mom_20d"] is None
+    assert result["industry_above_50ma"] is None
+    assert result["industry_rs_spy"] is None
+
+
+def test_industry_strength_insufficient_bars_returns_none():
+    """ETF with only 10 bars yields industry_mom_20d=None; industry_etf still set."""
+    from scanner.core import _industry_strength
+    market_data = {
+        "XSD": pd.DataFrame({"Close": [float(c) for c in range(1, 11)]}),  # 10 bars
+        "SPY": pd.DataFrame({"Close": [float(c) for c in range(1, 61)]}),
+    }
+    result = _industry_strength("semiconductors", "Technology", market_data)
+    assert result["industry_etf"] == "XSD"
+    assert result["industry_mom_20d"] is None
+
+
+def test_industry_above_50ma_flag():
+    """industry_above_50ma=True when ETF close > SMA50; False when below."""
+    from scanner.core import _industry_strength
+    # Uptrend: close[-1]=60 > sma50~35.5 -> True
+    up_closes = [float(c) for c in range(1, 61)]
+    # Downtrend: close[-1]=1 < sma50~25.5 -> False
+    down_closes = [float(c) for c in range(60, 0, -1)]
+    spy_closes = [float(c) for c in range(1, 61)]
+
+    result_up = _industry_strength(
+        "semiconductors", "Technology",
+        {"XSD": pd.DataFrame({"Close": up_closes}),
+         "SPY": pd.DataFrame({"Close": spy_closes})}
+    )
+    assert result_up["industry_above_50ma"] is True
+
+    result_down = _industry_strength(
+        "semiconductors", "Technology",
+        {"XSD": pd.DataFrame({"Close": down_closes}),
+         "SPY": pd.DataFrame({"Close": spy_closes})}
+    )
+    assert result_down["industry_above_50ma"] is False
+
+
+def test_industry_rs_spy_ratio():
+    """industry_rs_spy == etf_mom_20d / spy_mom_20d for known synthetic closes."""
+    from scanner.core import _industry_strength
+    etf_closes = [float(c) for c in range(1, 61)]   # [-21]=40, [-1]=60
+    spy_closes = [float(c) for c in range(20, 80)]  # [-21]=59, [-1]=79
+    market_data = {
+        "XSD": pd.DataFrame({"Close": etf_closes}),
+        "SPY": pd.DataFrame({"Close": spy_closes}),
+    }
+    result = _industry_strength("semiconductors", "Technology", market_data)
+    etf_mom = (etf_closes[-1] / etf_closes[-21] - 1) * 100
+    spy_mom = (spy_closes[-1] / spy_closes[-21] - 1) * 100
+    expected_ratio = etf_mom / spy_mom
+    assert result["industry_rs_spy"] == pytest.approx(expected_ratio)
+
+
 # ── Historical context slicing test ──────────────────────────────────────────
 
 def test_historical_context_sliced(tmp_path, monkeypatch):

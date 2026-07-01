@@ -75,11 +75,11 @@ def test_migrate_idempotent(tmp_path):
     conn = store_db.get_connection(path)
     ver = store_db.get_schema_version(conn)
     conn.close()
-    assert ver == 8
+    assert ver == 9
 
 
 def test_migrate_schema_version_present(db):
-    assert store_db.get_schema_version(db) == 8
+    assert store_db.get_schema_version(db) == 9
 
 
 # ── E9.1 AC3 — round-trip signal ─────────────────────────────────────────────
@@ -432,3 +432,21 @@ def test_target_r_defaults_null(db):
     updated = db.execute("SELECT * FROM signals WHERE id = ?", (row["id"],)).fetchone()
     assert updated["target_r"]   is None
     assert updated["target_atr"] is None
+
+
+# ── Phase 2 — industry momentum NULL round-trip ───────────────────────────────
+
+def test_industry_momentum_null_round_trip(db):
+    """industry_momentum=None must be stored as SQL NULL, not 0.0 (anti-NaN pitfall)."""
+    sig = {
+        **_sample_signal(),
+        "industry_group": None,
+        "industry_momentum": None,
+        "industry_above_50ma": None,
+        "industry_rank_pct": None,
+    }
+    store_db.insert_signal(db, sig)
+    row = db.execute("SELECT * FROM signals WHERE ticker = 'AAPL'").fetchone()
+    assert row["industry_momentum"] is None
+    assert row["industry_group"] is None
+    assert row["industry_rank_pct"] is None
