@@ -181,6 +181,40 @@ def test_earnings_parser_normal_future(monkeypatch):
 
 # ── Historical context slicing test ──────────────────────────────────────────
 
+# ── QualityInfo industry classification fields (Plan 01-02) ──────────────────
+
+def test_quality_info_industry_default():
+    """Five-arg positional construction: industry and industry_key default to None (D-04)."""
+    qi = QualityInfo(False, None, None, None, None)
+    assert qi.industry is None
+    assert qi.industry_key is None
+
+
+def test_quality_info_industry_roundtrip():
+    """Explicit keyword args round-trip correctly through the frozen dataclass (D-04)."""
+    qi = QualityInfo(
+        profitable=True,
+        market_cap=2.5e9,
+        debt_equity=50.0,
+        sector="Technology",
+        float_shares=50e6,
+        industry="Semiconductors",
+        industry_key="semiconductors",
+    )
+    assert qi.industry == "Semiconductors"
+    assert qi.industry_key == "semiconductors"
+
+
+def test_quality_info_no_classification_is_none_not_empty_string():
+    """No classification yields None — not empty string (success criterion 3)."""
+    qi = QualityInfo(profitable=True, market_cap=1e9, debt_equity=None,
+                     sector=None, float_shares=None)
+    assert qi.industry is None
+    assert qi.industry_key is None
+
+
+# ── Historical context slicing test ──────────────────────────────────────────
+
 def test_historical_context_sliced(tmp_path, monkeypatch):
     import scanner.data_store as ds
     import scanner.core as core
