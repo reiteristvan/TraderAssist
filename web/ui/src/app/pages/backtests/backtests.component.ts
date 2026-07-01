@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { ApiService, Run, CoreMetrics, ScoreBucket, ConfBucket, GateAttrib, TradeRecord, FailureAnalysis, StopOutForensics, TargetBucket } from '../../services/api.service';
+import { ApiService, Run, CoreMetrics, ScoreBucket, ConfBucket, GateAttrib, TradeRecord, FailureAnalysis, StopOutForensics, TargetBucket, WlAnalysis } from '../../services/api.service';
 
 @Component({
   selector: 'app-backtests',
@@ -85,6 +85,37 @@ export class BacktestsComponent implements OnInit {
 
   get hasTargetAtrData(): boolean {
     return this.targetAtrBuckets.some(b => b.n > 0);
+  }
+
+  get wlAnalysis(): WlAnalysis | null {
+    return this.selectedRun?.wl_analysis ?? null;
+  }
+
+  fmtWlValue(metric: string, value: number | null): string {
+    if (value == null) return '—';
+    switch (metric) {
+      case 'RSI at entry':      return value.toFixed(1);
+      case 'RVOL':              return value.toFixed(2) + 'x';
+      case 'Pullback depth %':  return (value >= 0 ? '+' : '') + value.toFixed(1) + '%';
+      case 'ATR multiple':      return value.toFixed(2);
+      case 'Industry momentum': return (value >= 0 ? '+' : '') + value.toFixed(1) + '%';
+      case 'Pct to 52w high':   return value.toFixed(1) + '%';
+      default:                  return value.toFixed(2);
+    }
+  }
+
+  fmtWlDelta(metric: string, delta: number | null): string {
+    if (delta == null) return '—';
+    const sign = delta >= 0 ? '+' : '';
+    switch (metric) {
+      case 'RSI at entry':      return sign + delta.toFixed(1);
+      case 'RVOL':              return sign + delta.toFixed(2);
+      case 'Pullback depth %':  return sign + delta.toFixed(1) + '%';
+      case 'ATR multiple':      return sign + delta.toFixed(2);
+      case 'Industry momentum': return sign + delta.toFixed(1) + '%';
+      case 'Pct to 52w high':   return sign + delta.toFixed(1) + '%';
+      default:                  return sign + delta.toFixed(2);
+    }
   }
 
   formatReason(reason: string): string {

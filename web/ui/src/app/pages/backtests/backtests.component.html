@@ -327,6 +327,47 @@
         </table>
       </div>
 
+      <!-- W/L analysis — abort warning -->
+      <div class="warning-box" *ngIf="wlAnalysis?.aborted">
+        {{ wlAnalysis!.abort_reason }}
+      </div>
+
+      <!-- W/L analysis — per-strategy cards -->
+      <ng-container *ngIf="wlAnalysis && !wlAnalysis.aborted">
+        <div class="card" *ngFor="let s of wlAnalysis.strategies">
+          <h2>W/L Analysis — {{ s.strategy | titlecase }}</h2>
+          <p class="section-desc">
+            Pre-registered entry-time metrics (6). Feature list defined in
+            <code>report.py</code> source code before results were viewed.
+          </p>
+
+          <!-- suppression warning -->
+          <div class="warning-box" *ngIf="s.suppressed">
+            {{ s.suppression_reason }}
+          </div>
+
+          <!-- comparison table -->
+          <table *ngIf="!s.suppressed">
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th class="num">Winners (n={{ s.winner_n }})</th>
+                <th class="num">Losers (n={{ s.loser_n }})</th>
+                <th class="num">Delta</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of s.rows">
+                <td>{{ row.metric }}</td>
+                <td class="num">{{ fmtWlValue(row.metric, row.winners_median) }}</td>
+                <td class="num">{{ fmtWlValue(row.metric, row.losers_median) }}</td>
+                <td class="num">{{ fmtWlDelta(row.metric, row.delta) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </ng-container>
+
       <!-- Trade list -->
       <div class="card" *ngIf="trades.length > 0">
         <h2>All trades ({{ trades.length }})</h2>
