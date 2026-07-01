@@ -272,6 +272,46 @@ def _rs_metrics(stock_df: pd.DataFrame, spy_df: Optional[pd.DataFrame],
     return {"rs_strength": rs_strength, "rs_at_new_high": bool(rs_at_high)}
 
 
+def _industry_strength(
+    industry_key: Optional[str],
+    sector: Optional[str],
+    market_data: dict,
+) -> dict:
+    """Compute industry-ETF momentum metrics for a single signal.
+
+    Returns a 4-key dict: industry_etf, industry_mom_20d, industry_above_50ma,
+    industry_rs_spy.  All values default to None; missing ETF or insufficient
+    bars return None (never NaN) so DB writes produce SQL NULL, not 0.0.
+    Does NOT import yfinance and does NOT call datetime.now — operates only on
+    the already-sliced market_data dict passed by the caller.
+    """
+    out: dict = {
+        "industry_etf": None,
+        "industry_mom_20d": None,
+        "industry_above_50ma": None,
+        "industry_rs_spy": None,
+    }
+    etf = resolve_industry_etf(industry_key, sector)
+    if etf is None:
+        return out
+    out["industry_etf"] = etf
+    etf_df = market_data.get(etf)
+    spy_df = market_data.get("SPY")
+    if etf_df is None or len(etf_df) < 21:
+        return out  # not enough bars for 20-day ROC
+    etf_mom = float(etf_df["Close"].iloc[-1] / etf_df["Close"].iloc[-21] - 1) * 100
+    if not pd.isna(etf_mom):
+        out["industry_mom_20d"] = etf_mom
+    if len(etf_df) >= 50:
+        sma50 = etf_df["Close"].rolling(50).mean().iloc[-1]
+        out["industry_above_50ma"] = bool(etf_df["Close"].iloc[-1] > sma50)
+    if spy_df is not None and len(spy_df) >= 21:
+        spy_mom = float(spy_df["Close"].iloc[-1] / spy_df["Close"].iloc[-21] - 1) * 100
+        if not pd.isna(spy_mom) and spy_mom != 0 and out["industry_mom_20d"] is not None:
+            out["industry_rs_spy"] = out["industry_mom_20d"] / spy_mom
+    return out
+
+
 def _sector_strength(sector: Optional[str], market_data: dict) -> dict:
     out = {"sector_etf": None, "sector_above_50ma": False, "sector_outperforming": False}
     if not sector:

@@ -253,7 +253,7 @@ def test_migrate_v1_to_current(tmp_path):
     # migrate() should upgrade to current version
     store_db.migrate(db_path=path)
     conn2 = store_db.get_connection(path)
-    assert store_db.get_schema_version(conn2) == 8
+    assert store_db.get_schema_version(conn2) == 9
     # Columns added in v2/v3 must exist
     cols = [r[1] for r in conn2.execute("PRAGMA table_info(signals)").fetchall()]
     assert "gate_detail_json" in cols
@@ -268,6 +268,11 @@ def test_migrate_v1_to_current(tmp_path):
     assert "mfe_r" in cols
     assert "post_stop_reached_target" in cols
     assert "post_stop_mfe_r" in cols
+    # industry_* added in v9 must exist
+    assert "industry_group" in cols
+    assert "industry_momentum" in cols
+    assert "industry_above_50ma" in cols
+    assert "industry_rank_pct" in cols
     # bars table added in v5 must exist
     tables = [r[0] for r in conn2.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
     assert "bars" in tables

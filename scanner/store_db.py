@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 _DEFAULT_DB = Path("data/scanner.db")
-_SCHEMA_VERSION = 8
+_SCHEMA_VERSION = 9
 
 # ── DDL ───────────────────────────────────────────────────────────────────────
 
@@ -63,6 +63,10 @@ CREATE TABLE IF NOT EXISTS signals (
     mfe_r       REAL,
     post_stop_reached_target INTEGER,
     post_stop_mfe_r REAL,
+    industry_group TEXT,
+    industry_momentum REAL,
+    industry_above_50ma INTEGER,
+    industry_rank_pct REAL,
     created_at  TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE (date, ticker, strategy, source, run_id)
 );
@@ -151,6 +155,14 @@ def migrate(db_path: Optional[Path] = None, conn: Optional[sqlite3.Connection] =
                 conn.execute("ALTER TABLE signals ADD COLUMN post_stop_reached_target INTEGER")
                 conn.execute("ALTER TABLE signals ADD COLUMN post_stop_mfe_r REAL")
                 conn.execute("UPDATE schema_version SET version = 8")
+                current = 8
+            if current < 9:
+                conn.execute("ALTER TABLE signals ADD COLUMN industry_group TEXT")
+                conn.execute("ALTER TABLE signals ADD COLUMN industry_momentum REAL")
+                conn.execute("ALTER TABLE signals ADD COLUMN industry_above_50ma INTEGER")
+                conn.execute("ALTER TABLE signals ADD COLUMN industry_rank_pct REAL")
+                conn.execute("UPDATE schema_version SET version = 9")
+                current = 9  # noqa: F841 (used for future migration guards)
         conn.commit()
     finally:
         if own:
@@ -198,12 +210,22 @@ def insert_signal(conn: sqlite3.Connection, sig: dict) -> None:
         """INSERT OR IGNORE INTO signals
            (date, ticker, strategy, source, run_id, score, confidence,
             stop, target, atr, qualified, failed_gates, close,
-            gate_detail_json, ath_zone)
+            gate_detail_json, ath_zone,
+            industry_group, industry_momentum, industry_above_50ma, industry_rank_pct)
            VALUES (:date, :ticker, :strategy, :source, :run_id, :score, :confidence,
                    :stop, :target, :atr, :qualified, :failed_gates, :close,
-                   :gate_detail_json, :ath_zone)""",
-        {**sig, "gate_detail_json": sig.get("gate_detail_json"),
-                "ath_zone": sig.get("ath_zone")},
+                   :gate_detail_json, :ath_zone,
+                   :industry_group, :industry_momentum,
+                   :industry_above_50ma, :industry_rank_pct)""",
+        {
+            **sig,
+            "gate_detail_json": sig.get("gate_detail_json"),
+            "ath_zone": sig.get("ath_zone"),
+            "industry_group": sig.get("industry_group"),
+            "industry_momentum": sig.get("industry_momentum"),
+            "industry_above_50ma": sig.get("industry_above_50ma"),
+            "industry_rank_pct": sig.get("industry_rank_pct"),
+        },
     )
     conn.commit()
 
@@ -216,12 +238,22 @@ def insert_signals_batch(conn: sqlite3.Connection, sigs: list[dict]) -> int:
             """INSERT OR IGNORE INTO signals
                (date, ticker, strategy, source, run_id, score, confidence,
                 stop, target, atr, qualified, failed_gates, close,
-                gate_detail_json, ath_zone)
+                gate_detail_json, ath_zone,
+                industry_group, industry_momentum, industry_above_50ma, industry_rank_pct)
                VALUES (:date, :ticker, :strategy, :source, :run_id, :score, :confidence,
                        :stop, :target, :atr, :qualified, :failed_gates, :close,
-                       :gate_detail_json, :ath_zone)""",
-            {**sig, "gate_detail_json": sig.get("gate_detail_json"),
-                    "ath_zone": sig.get("ath_zone")},
+                       :gate_detail_json, :ath_zone,
+                       :industry_group, :industry_momentum,
+                       :industry_above_50ma, :industry_rank_pct)""",
+            {
+                **sig,
+                "gate_detail_json": sig.get("gate_detail_json"),
+                "ath_zone": sig.get("ath_zone"),
+                "industry_group": sig.get("industry_group"),
+                "industry_momentum": sig.get("industry_momentum"),
+                "industry_above_50ma": sig.get("industry_above_50ma"),
+                "industry_rank_pct": sig.get("industry_rank_pct"),
+            },
         )
         inserted += cur.rowcount
     conn.commit()
