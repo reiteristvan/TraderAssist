@@ -13,7 +13,7 @@ This milestone adds two capabilities to TraderAssist: industry-group momentum as
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Industry Classification + ETF Data Layer** - Validate yfinance industry strings and Parquet-cache ~10 industry ETF tickers as the foundation for all momentum computation
+- [x] **Phase 1: Industry Classification + ETF Data Layer** - Validate yfinance industry strings and Parquet-cache ~10 industry ETF tickers as the foundation for all momentum computation (completed 2026-07-01)
 - [ ] **Phase 2: Industry Momentum Computation + Schema v7** - Compute 20-day momentum scores, above/below 50-day MA flag, and rank percentile on every signal without look-ahead bias; persist in dedicated schema v7 columns
 - [ ] **Phase 3: Industry Display in CLI + Web UI** - Surface industry group name and momentum indicators in scan CLI output and the Angular signal table
 - [ ] **Phase 4: Winner/Loser Characteristic Analysis** - Deliver pre-registered W/L breakdown in backtest reports with per-strategy tables, cell-size suppression, and sample-size abort
@@ -33,14 +33,14 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. A ticker with no yfinance industry classification returns NULL (not empty string or 0.0) in `QualityInfo.industry`, verified by a unit test
   4. An industry with no direct ETF entry falls back to its sector-level ETF rather than raising an exception, verified by a unit test
 
-**Plans**: 1/2 plans executed
+**Plans**: 2/2 plans complete
 **Wave 1**
 
 - [x] 01-01-PLAN.md — INDUSTRY_ETF_MAP + resolve_industry_etf() resolution chain + deduplicated _MARKET_SYMBOLS (wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 01-02-PLAN.md — QualityInfo industry/industry_key fields + _make_quality_info() fetch (wave 2)
+- [x] 01-02-PLAN.md — QualityInfo industry/industry_key fields + _make_quality_info() fetch (wave 2)
 
 ### Phase 2: Industry Momentum Computation + Schema v7
 
@@ -97,7 +97,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Industry Classification + ETF Data Layer | 1/2 | In Progress|  |
+| 1. Industry Classification + ETF Data Layer | 2/2 | Complete   | 2026-07-01 |
 | 2. Industry Momentum Computation + Schema v7 | 0/0 | Not started | - |
 | 3. Industry Display in CLI + Web UI | 0/0 | Not started | - |
 | 4. Winner/Loser Characteristic Analysis | 0/0 | Not started | - |
