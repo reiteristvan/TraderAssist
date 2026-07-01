@@ -677,6 +677,16 @@ def run_scan(
 
         row = asdict(result)
         row["ath_zone"] = zone_label
+        # Industry momentum — use getattr guards so a None quality degrades to None
+        _ind_key  = getattr(ctx.quality, "industry_key", None)
+        _ind_sec  = getattr(ctx.quality, "sector", None)
+        _ind_name = getattr(ctx.quality, "industry", None)
+        _strength = _industry_strength(_ind_key, _ind_sec, ctx.market_data)
+        row["industry_group"]    = _ind_name
+        row["industry_etf"]      = _strength["industry_etf"]
+        row["industry_momentum"] = _strength["industry_mom_20d"]
+        row["industry_above_50ma"] = _strength["industry_above_50ma"]
+        # industry_rank_pct is computed in Plan 02's post-loop step — leave unset here
         rows.append(row)
 
     if n > 1 and not verbose:

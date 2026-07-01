@@ -65,6 +65,10 @@ def write_live_signals(
             "close": row.get("close"),
             "gate_detail_json": json.dumps(row.get("gate_detail") or []),
             "ath_zone": row.get("ath_zone"),
+            "industry_group": row.get("industry_group"),
+            "industry_momentum": row.get("industry_momentum"),
+            "industry_above_50ma": row.get("industry_above_50ma"),
+            "industry_rank_pct": row.get("industry_rank_pct"),
         })
     n = store_db.insert_signals_batch(conn, sigs)
     conn.close()
