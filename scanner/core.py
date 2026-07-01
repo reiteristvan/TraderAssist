@@ -205,6 +205,8 @@ class QualityInfo:
     debt_equity: Optional[float]
     sector: Optional[str]
     float_shares: Optional[float]
+    industry: Optional[str] = None       # human-readable display name (D-04)
+    industry_key: Optional[str] = None   # industryKey slug for ETF lookup (D-04, D-05)
 
 
 @dataclass(frozen=True)
