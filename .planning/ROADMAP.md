@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Industry Classification + ETF Data Layer** - Validate yfinance industry strings and Parquet-cache ~10 industry ETF tickers as the foundation for all momentum computation (completed 2026-07-01)
 - [x] **Phase 2: Industry Momentum Computation + Schema v7** - Compute 20-day momentum scores, above/below 50-day MA flag, and rank percentile on every signal without look-ahead bias; persist in dedicated schema v7 columns (completed 2026-07-01)
 - [x] **Phase 3: Industry Display in CLI + Web UI** - Surface industry group name and momentum indicators in scan CLI output and the Angular signal table (completed 2026-07-01)
-- [ ] **Phase 4: Winner/Loser Characteristic Analysis** - Deliver pre-registered W/L breakdown in backtest reports with per-strategy tables, cell-size suppression, and sample-size abort
+- [x] **Phase 4: Winner/Loser Characteristic Analysis** - Deliver pre-registered W/L breakdown in backtest reports with per-strategy tables, cell-size suppression, and sample-size abort (completed 2026-07-01)
 
 ## Phase Details
 
@@ -98,7 +98,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. When total qualified trades fall below 200, the analysis outputs an explicit warning and produces no comparison table
   5. Industry momentum score appears as one column in the winner vs loser comparison table
 
-**Plans**: 1/2 plans executed
+**Plans**: 2/2 plans complete
 **UI hint**: yes
 **Wave 1**
 
@@ -106,7 +106,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 04-02-PLAN.md — Web slice: runs.js wl_analysis passthrough + api.service interfaces + backtests component getter/formatters/cards + specs (WLA-01, WLA-04, WLA-05)
+- [x] 04-02-PLAN.md — Web slice: runs.js wl_analysis passthrough + api.service interfaces + backtests component getter/formatters/cards + specs (WLA-01, WLA-04, WLA-05)
 
 ## Progress
 
@@ -118,4 +118,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Industry Classification + ETF Data Layer | 2/2 | Complete    | 2026-07-01 |
 | 2. Industry Momentum Computation + Schema v7 | 2/2 | Complete    | 2026-07-01 |
 | 3. Industry Display in CLI + Web UI | 2/2 | Complete   | 2026-07-01 |
-| 4. Winner/Loser Characteristic Analysis | 1/2 | In Progress|  |
+| 4. Winner/Loser Characteristic Analysis | 2/2 | Complete   | 2026-07-01 |
