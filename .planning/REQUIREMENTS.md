@@ -10,7 +10,7 @@
 - [x] **IND-01**: Every signal shows the industry group name (e.g. "Software—Infrastructure") from yfinance `info['industry']`
 - [x] **IND-02**: Every signal shows a 20-day momentum score (signed % outperformance vs SPY) for the stock's industry group ETF
 - [x] **IND-03**: Every signal shows an above/below 50-day MA boolean flag for the industry ETF (trending up or not)
-- [ ] **IND-04**: Every signal shows an industry rank expressed as a top-N% percentile among all industry groups observed in the scan universe
+- [x] **IND-04**: Every signal shows an industry rank expressed as a top-N% percentile among all industry groups observed in the scan universe
 - [x] **IND-05**: Industry momentum fields are stored in dedicated columns (`industry_group`, `industry_momentum`) in the signals table under schema v7
 - [x] **IND-06**: Industry momentum is computed without look-ahead bias — ETF price data is anchored to the signal's `as_of` date using the same sliced-market pattern as SPY in the backtest loop
 - [ ] **IND-07**: Industry momentum fields appear in scan CLI output and are visible in the web UI signal table
@@ -58,7 +58,7 @@
 | IND-01 | Phase 1 | Complete |
 | IND-02 | Phase 2 | Complete |
 | IND-03 | Phase 2 | Complete |
-| IND-04 | Phase 2 | Pending |
+| IND-04 | Phase 2 | Complete |
 | IND-05 | Phase 2 | Complete |
 | IND-06 | Phase 2 | Complete |
 | IND-07 | Phase 3 | Pending |

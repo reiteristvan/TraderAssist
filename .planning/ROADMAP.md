@@ -14,7 +14,7 @@ This milestone adds two capabilities to TraderAssist: industry-group momentum as
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Industry Classification + ETF Data Layer** - Validate yfinance industry strings and Parquet-cache ~10 industry ETF tickers as the foundation for all momentum computation (completed 2026-07-01)
-- [ ] **Phase 2: Industry Momentum Computation + Schema v7** - Compute 20-day momentum scores, above/below 50-day MA flag, and rank percentile on every signal without look-ahead bias; persist in dedicated schema v7 columns
+- [x] **Phase 2: Industry Momentum Computation + Schema v7** - Compute 20-day momentum scores, above/below 50-day MA flag, and rank percentile on every signal without look-ahead bias; persist in dedicated schema v7 columns (completed 2026-07-01)
 - [ ] **Phase 3: Industry Display in CLI + Web UI** - Surface industry group name and momentum indicators in scan CLI output and the Angular signal table
 - [ ] **Phase 4: Winner/Loser Characteristic Analysis** - Deliver pre-registered W/L breakdown in backtest reports with per-strategy tables, cell-size suppression, and sample-size abort
 
@@ -55,14 +55,14 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. A backtest spot-check on a specific historical date confirms the ETF close price used equals the actual historical close on that date — no future prices consumed
   4. A ticker with no matched industry ETF stores NULL in `industry_momentum` (not 0.0); the NULL survives DB round-trip without coercion to any numeric value
 
-**Plans**: 1/2 plans executed
+**Plans**: 2/2 plans complete
 **Wave 1**
 
 - [x] 02-01-PLAN.md — _industry_strength() (20d momentum + 50MA flag) + schema v9 migration + live run_scan/journal wiring (IND-02, IND-03, IND-05, IND-06)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 02-02-PLAN.md — within-run rank percentile + Signal dataclass fields + per-day-anchored backtest momentum/rank + journal backtest ingestion (IND-04, IND-06)
+- [x] 02-02-PLAN.md — within-run rank percentile + Signal dataclass fields + per-day-anchored backtest momentum/rank + journal backtest ingestion (IND-04, IND-06)
 
 ### Phase 3: Industry Display in CLI + Web UI
 
@@ -105,6 +105,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Industry Classification + ETF Data Layer | 2/2 | Complete    | 2026-07-01 |
-| 2. Industry Momentum Computation + Schema v7 | 1/2 | In Progress|  |
+| 2. Industry Momentum Computation + Schema v7 | 2/2 | Complete   | 2026-07-01 |
 | 3. Industry Display in CLI + Web UI | 0/0 | Not started | - |
 | 4. Winner/Loser Characteristic Analysis | 0/0 | Not started | - |
