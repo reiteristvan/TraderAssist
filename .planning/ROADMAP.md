@@ -55,10 +55,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. A backtest spot-check on a specific historical date confirms the ETF close price used equals the actual historical close on that date — no future prices consumed
   4. A ticker with no matched industry ETF stores NULL in `industry_momentum` (not 0.0); the NULL survives DB round-trip without coercion to any numeric value
 
-**Plans**: 2 plans
+**Plans**: 1/2 plans executed
 **Wave 1**
 
-- [ ] 02-01-PLAN.md — _industry_strength() (20d momentum + 50MA flag) + schema v9 migration + live run_scan/journal wiring (IND-02, IND-03, IND-05, IND-06)
+- [x] 02-01-PLAN.md — _industry_strength() (20d momentum + 50MA flag) + schema v9 migration + live run_scan/journal wiring (IND-02, IND-03, IND-05, IND-06)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -105,6 +105,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Industry Classification + ETF Data Layer | 2/2 | Complete    | 2026-07-01 |
-| 2. Industry Momentum Computation + Schema v7 | 0/2 | Not started | - |
+| 2. Industry Momentum Computation + Schema v7 | 1/2 | In Progress|  |
 | 3. Industry Display in CLI + Web UI | 0/0 | Not started | - |
 | 4. Winner/Loser Characteristic Analysis | 0/0 | Not started | - |
