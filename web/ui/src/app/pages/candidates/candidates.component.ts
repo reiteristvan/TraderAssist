@@ -65,4 +65,15 @@ export class CandidatesComponent implements OnInit {
     if (s.close == null || s.stop == null) return '—';
     return ((s.close - s.stop) / s.close * 100).toFixed(1) + '%';
   }
+
+  industryMom(s: Signal): string {
+    if (s.industry_momentum == null) return '—';
+    const prefix = s.industry_momentum >= 0 ? '+' : '';
+    return prefix + s.industry_momentum.toFixed(1) + '%';
+  }
+
+  industryRank(s: Signal): string {
+    if (s.industry_rank_pct == null) return '—';
+    return Math.round(s.industry_rank_pct).toString();
+  }
 }

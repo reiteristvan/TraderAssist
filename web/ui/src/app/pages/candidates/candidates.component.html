@@ -43,6 +43,10 @@
         <th (click)="sort('strategy')">Strategy{{ sortIcon('strategy') }}</th>
         <th (click)="sort('score')" class="num">Score{{ sortIcon('score') }}</th>
         <th>Conf</th>
+        <th (click)="sort('industry_group')">Industry{{ sortIcon('industry_group') }}</th>
+        <th (click)="sort('industry_momentum')" class="num">Mom{{ sortIcon('industry_momentum') }}</th>
+        <th (click)="sort('industry_above_50ma')">Trend{{ sortIcon('industry_above_50ma') }}</th>
+        <th (click)="sort('industry_rank_pct')" class="num">Rank%{{ sortIcon('industry_rank_pct') }}</th>
         <th class="num">Entry</th>
         <th class="num">Stop</th>
         <th class="num">Stop %</th>
@@ -66,6 +70,12 @@
             {{ s.confidence ?? '—' }}
           </span>
         </td>
+        <td class="industry-group-cell" [title]="s.industry_group ?? ''">{{ s.industry_group ?? '—' }}</td>
+        <td class="num"
+            [class.mom-pos]="s.industry_momentum != null && s.industry_momentum > 0"
+            [class.mom-neg]="s.industry_momentum != null && s.industry_momentum < 0">{{ industryMom(s) }}</td>
+        <td class="num">{{ s.industry_above_50ma == null ? '—' : s.industry_above_50ma === 1 ? '↑' : '↓' }}</td>
+        <td class="num muted">{{ s.industry_rank_pct != null ? 'Top ' + industryRank(s) + '%' : '—' }}</td>
         <td class="num">{{ s.close | number:'1.2-2' }}</td>
         <td class="num stop-col">{{ s.stop | number:'1.2-2' }}</td>
         <td class="num muted">{{ stopPct(s) }}</td>

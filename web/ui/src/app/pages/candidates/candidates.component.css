@@ -45,3 +45,13 @@
 .ok-rr   { color: #c4a836; }
 
 .near-ath td { background: rgba(90, 60, 20, 0.1); }
+
+.mom-pos { color: #4caf89; }
+.mom-neg { color: #c46060; }
+
+.industry-group-cell {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

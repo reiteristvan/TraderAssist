@@ -104,6 +104,7 @@ describe('CandidatesComponent', () => {
           industry_rank_pct: null
         })
       ];
+      component.loading = false;
       fixture.detectChanges();
       const text: string = fixture.nativeElement.textContent;
       expect(text).toContain('Industry');
