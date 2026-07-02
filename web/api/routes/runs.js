@@ -5,6 +5,10 @@ const db = require('../db');
 
 const router = Router();
 
+function safeParse(json, fallback) {
+  try { return JSON.parse(json || JSON.stringify(fallback)); } catch { return fallback; }
+}
+
 // GET /api/runs?kind=scan|backtest — list of runs
 router.get('/runs', (req, res) => {
   const { kind } = req.query;
@@ -40,7 +44,7 @@ router.get('/runs/:run_id', (req, res) => {
   if (run.kind === 'backtest') {
     const report = db.getBacktestReport(run_id);
     if (report) {
-      const reportData = JSON.parse(report.metrics_json || '{}');
+      const reportData = safeParse(report.metrics_json, {});
       // Support both old flat format and new nested format (full json_data from render_report)
       if (reportData.metrics) {
         result.metrics            = reportData.metrics;
@@ -57,7 +61,7 @@ router.get('/runs/:run_id', (req, res) => {
       } else {
         result.metrics = reportData;
       }
-      result.biases = JSON.parse(report.biases_json || '[]');
+      result.biases = safeParse(report.biases_json, []);
     } else {
       result.metrics = null;
       result.biases  = null;
