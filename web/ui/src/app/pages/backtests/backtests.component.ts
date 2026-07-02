@@ -1,5 +1,7 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
+import { Subject } from 'rxjs';
+import { switchMap, takeUntil } from 'rxjs/operators';
 import { ApiService, Run, CoreMetrics, ScoreBucket, ConfBucket, GateAttrib, TradeRecord, FailureAnalysis, StopOutForensics, TargetBucket, WlAnalysis } from '../../services/api.service';
 
 @Component({
@@ -7,11 +9,14 @@ import { ApiService, Run, CoreMetrics, ScoreBucket, ConfBucket, GateAttrib, Trad
   templateUrl: './backtests.component.html',
   styleUrls: ['./backtests.component.css']
 })
-export class BacktestsComponent implements OnInit {
+export class BacktestsComponent implements OnInit, OnDestroy {
   runs: Run[] = [];
   selectedRun: Run | null = null;
   loading = true;
   detailLoading = false;
+  loadError: string | null = null;
+  private runId$ = new Subject<string>();
+  private destroy$ = new Subject<void>();
 
   constructor(
     private api: ApiService,
@@ -20,6 +25,14 @@ export class BacktestsComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
+    this.runId$.pipe(
+      switchMap(id => this.api.getRun(id)),
+      takeUntil(this.destroy$)
+    ).subscribe({
+      next: r => { this.selectedRun = r; this.detailLoading = false; this.loadError = null; },
+      error: () => { this.selectedRun = null; this.detailLoading = false; this.loadError = 'Failed to load run details.'; }
+    });
+
     this.api.getRuns('backtest').subscribe(r => {
       this.runs = r?.runs ?? [];
       this.loading = false;
@@ -28,13 +41,16 @@ export class BacktestsComponent implements OnInit {
     });
   }
 
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
   selectRun(runId: string): void {
     this.detailLoading = true;
+    this.loadError = null;
     this.router.navigate(['/backtests', runId]);
-    this.api.getRun(runId).subscribe(r => {
-      this.selectedRun = r;
-      this.detailLoading = false;
-    });
+    this.runId$.next(runId);
   }
 
   get coreMetrics(): CoreMetrics | null {
