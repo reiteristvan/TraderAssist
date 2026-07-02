@@ -1,8 +1,8 @@
-# TraderAssist — Signal Quality Milestone
+# TraderAssist
 
 ## What This Is
 
-TraderAssist is a personal swing trading scanner that identifies pullback and breakout setups across S&P 400/500/600 universes. It runs nightly scans, generates signals with gate-based filtering, backtests strategies over historical data, and displays results through a web UI. The owner uses it to surface actionable trade candidates with defined risk parameters.
+TraderAssist is a personal swing trading scanner that identifies pullback and breakout setups across S&P 400/500/600 universes. It runs nightly scans, generates signals with gate-based filtering, backtests strategies over historical data, and displays results through a web UI. Every signal now carries industry-group momentum context and backtest reports include a pre-registered winner/loser characteristic analysis. The owner uses it to surface actionable trade candidates with defined risk parameters and to systematically investigate whether entry-time context (industry momentum, entry RSI, RVOL) discriminates winners from losers.
 
 ## Core Value
 
@@ -23,30 +23,54 @@ Surface high-quality swing trade setups where the signal has a genuine edge — 
 - ✓ SQLite signal/run/report persistence — existing
 - ✓ Universe management (SP400/500/600) — existing
 - ✓ Journal and live signal resolution — existing
+- ✓ Industry group name on every signal (IND-01) — v1.0
+- ✓ 20-day industry ETF momentum vs SPY on every signal (IND-02) — v1.0
+- ✓ Industry ETF above/below 50-day MA flag on every signal (IND-03) — v1.0
+- ✓ Within-run industry rank percentile on every signal (IND-04) — v1.0
+- ✓ Industry momentum columns in schema v9 (IND-05) — v1.0
+- ✓ Look-ahead-bias-free ETF momentum in backtest engine (IND-06) — v1.0
+- ✓ Industry fields visible in CLI scan output and Angular signal table (IND-07) — v1.0
+- ✓ Winner/loser median comparison in backtest reports — 6 pre-registered metrics (WLA-01, WLA-02) — v1.0
+- ✓ Per-strategy W/L breakdown (pullback vs breakout not combined) (WLA-03) — v1.0
+- ✓ Industry momentum as a W/L discriminant dimension (WLA-04) — v1.0
+- ✓ Cell-size gate: suppress buckets < 50 trades (WLA-05) — v1.0
+- ✓ Pre-registered feature list committed before viewing results (WLA-06) — v1.0
 
 ### Active
 
-- [ ] Industry/sector momentum as a display field on every signal — show the momentum strength of each stock's industry group so the owner can visually correlate it with outcomes before deciding whether it earns gate status
-- [ ] Winner vs loser characteristic analysis in backtest reports — side-by-side breakdown of what entry-time metrics (RSI level, ATR multiple, industry momentum, etc.) winners had that losers didn't
+- [ ] Industry momentum gate promotion (IND-GATE-01) — promote to a hard gate only after backtest evidence demonstrates discriminating value
+- [ ] Industry rank delta vs 4 weeks prior — momentum-of-momentum signal (IND-EXT-01)
+- [ ] Statistical significance indicators on W/L metrics — p-values or confidence intervals (WLA-EXT-01)
+- [ ] Win rate by quarter time-series — detect regime dependency in W/L patterns (WLA-EXT-02)
 
 ### Out of Scope
 
-- Adding industry momentum as a hard gate — display-only first; promote only after backtest evidence supports it (same discipline applied to ADX/volume contraction)
 - Changing existing pullback/breakout gate thresholds or score formulas — stable, do not touch without new data
 - Signal ranking / top-N selection — not the current focus
 - Macro timing rules (FOMC avoidance, earnings season filters) — not prioritized
+- IBD-style 197-group classification — proprietary, not available via yfinance
+- Paid data feeds (Bloomberg, Refinitiv) — yfinance-only constraint; this is intentional
 
 ## Context
 
-The scanner currently produces signals where ~50% eventually hit stop loss. All passing signals have cleared every gate, so the problem isn't a missing gate condition — it's that the gates are necessary but not sufficient. The hypothesis is that industry/sector momentum is a dimension not currently captured: a pullback in a weak industry may meet all technical gates but lack the directional tailwind that distinguishes winners.
+**Shipped:** v1.0 Signal Quality (2026-07-02)
 
-Key lessons from prior work:
+The v1.0 milestone delivered industry-group momentum context on every signal and a pre-registered winner/loser analysis in backtest reports. The system now has the instrumentation to investigate whether industry momentum and entry-time metrics (RSI, RVOL, pullback depth) discriminate winners from losers.
+
+**Current state:**
+- Scanner: Python scanner with 239 passing tests; schema v9 (12 tables)
+- Web: Express API (port 3000) + Angular SPA (port 4200); 71 + 37 passing tests
+- Stack: Python/pandas/yfinance + SQLite + Node.js/Express + Angular 17
+- Universe: SP400/500/600 (1,400 tickers); sample.txt for dev testing
+
+**Next investigation:** Run a multi-year pullback backtest with the v1.0 codebase, then read the `wl_analysis` output to see whether industry momentum, RSI at entry, or RVOL actually discriminates winners from losers with sufficient sample size. This is the evidence base for gate promotion decisions in v2.
+
+Key lessons from prior milestones:
 - ADX gate removal degraded performance (reverted)
 - Volume contraction gate removal also degraded performance (reverted)
 - Empirical validation before any gate change is mandatory
-- Post-mortem analysis infrastructure already exists but hasn't surfaced a discriminating feature yet
-
-Stack: Python scanner, SQLite DB (`data/scanner.db`), Express API (port 3000), Angular SPA (port 4200). Data via yfinance with Parquet cache. All tests via `pytest -q`.
+- `bool(NaN)` evaluates to `True` in Python — guard pre-warm-up MACD with `pd.isna()` checks
+- Signal key collision risk in dual-strategy backtests: use 3-tuple `(date, ticker, strategy)` for dict keys
 
 ## Constraints
 
@@ -59,9 +83,12 @@ Stack: Python scanner, SQLite DB (`data/scanner.db`), Express API (port 3000), A
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Display-only for industry momentum | Follow the same evidence-first discipline that prevented two gate-removal mistakes | — Pending |
-| Industry group granularity over GICS sectors | Finer discrimination — sectors are too broad to be predictive at the individual stock level | — Pending |
-| Winner vs loser analysis in backtest reports | ~50% stop rate with no single causal gate means the answer is in the distribution, not a single threshold | — Pending |
+| Display-only for industry momentum | Follow the same evidence-first discipline that prevented two gate-removal mistakes | ✓ Validated — industry fields visible; gate promotion deferred to v2 pending backtest evidence |
+| Industry group granularity over GICS sectors | Finer discrimination — sectors are too broad to be predictive at the individual stock level | ✓ Validated — industryKey slugs from yfinance map cleanly to SPDR ETF proxies |
+| Winner vs loser analysis in backtest reports | ~50% stop rate with gate compliance means the answer is in the distribution, not a single threshold | ✓ Delivered — 6-metric pre-registered analysis with anti-cherry-picking guard |
+| `WL_FEATURES` pre-registration before any backtest viewed | Anti-cherry-picking: feature list must not be influenced by observed results | ✓ Enforced — constant committed before results evaluated; pattern established for v2 |
+| Schema v9 (not v7 as milestone originally named) | v7/v8 already consumed by prior epics; v9 is the correct next increment | ✓ Applied — schema_version = 9 in production DB |
+| 3-tuple signal key in W/L analysis | Prevents collision in dual-strategy runs where same ticker appears in both strategies | ✓ Correct — found and fixed in code review (CR-02) |
 
 ---
 
@@ -83,4 +110,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-30 after initialization*
+*Last updated: 2026-07-02 after v1.0 Signal Quality milestone*
