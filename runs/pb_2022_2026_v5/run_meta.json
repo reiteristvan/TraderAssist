@@ -1,0 +1,13 @@
+{
+  "strategy": "pullback",
+  "universe_size": 602,
+  "start": "2022-01-01",
+  "end": "2026-06-25",
+  "earnings_gate": "on",
+  "capture_near_misses": 1,
+  "time_stop": 10,
+  "entry": "next_open",
+  "git_hash": "2226f1f",
+  "total_signals": 18830,
+  "qualified_signals": 3189
+}

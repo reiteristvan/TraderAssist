@@ -1,0 +1,177 @@
+{
+  "metrics": {
+    "count": 0,
+    "win_rate": null,
+    "avg_win_r": null,
+    "avg_loss_r": null,
+    "expectancy_r": null,
+    "median_holding_days": null,
+    "exit_reason_breakdown": {},
+    "max_drawdown_r": null,
+    "ambiguous_bar_pct": 0.0,
+    "gap_skip_pct": 0.0,
+    "incomplete_pct": 0.0
+  },
+  "score_buckets": [
+    {
+      "bucket": "40\u201354",
+      "n": 0,
+      "win_rate": null,
+      "expectancy_r": null,
+      "verdict": "insufficient n"
+    },
+    {
+      "bucket": "55\u201369",
+      "n": 0,
+      "win_rate": null,
+      "expectancy_r": null,
+      "verdict": "insufficient n"
+    },
+    {
+      "bucket": "70\u201384",
+      "n": 0,
+      "win_rate": null,
+      "expectancy_r": null,
+      "verdict": "insufficient n"
+    },
+    {
+      "bucket": "85\u2013100",
+      "n": 0,
+      "win_rate": null,
+      "expectancy_r": null,
+      "verdict": "insufficient n"
+    }
+  ],
+  "conf_buckets": [
+    {
+      "bucket": "LOW",
+      "n": 0,
+      "win_rate": null,
+      "expectancy_r": null,
+      "verdict": "insufficient n"
+    },
+    {
+      "bucket": "MEDIUM",
+      "n": 0,
+      "win_rate": null,
+      "expectancy_r": null,
+      "verdict": "insufficient n"
+    },
+    {
+      "bucket": "HIGH",
+      "n": 0,
+      "win_rate": null,
+      "expectancy_r": null,
+      "verdict": "insufficient n"
+    }
+  ],
+  "monthly_signals": {},
+  "gate_attribution": [
+    {
+      "gate": "Market cap in range",
+      "n": 24,
+      "expectancy_r": 0.8707670892760259,
+      "qualified_expectancy_r": 0.0,
+      "delta_r": 0.8707670892760259,
+      "verdict": "insufficient n",
+      "recommendation": "insufficient_n"
+    }
+  ],
+  "failure_analysis": {
+    "total_non_winners": 0,
+    "stop_out": 0,
+    "time_stop": 0,
+    "other": 0,
+    "interpretation": "No non-winning trades to analyze."
+  },
+  "stop_out_forensics": {
+    "n_stop_outs": 0,
+    "pct_reached_target": null,
+    "median_post_stop_mfe_r": null,
+    "winners_mae_near_minus1_pct": null,
+    "branch": null,
+    "interpretation": "No stop-out trades to analyze."
+  },
+  "target_r_buckets": [
+    {
+      "bucket": "1.0\u20131.5\u00d7R",
+      "n": 0,
+      "hit_rate": null,
+      "expectancy_r": null
+    },
+    {
+      "bucket": "1.5\u20132.0\u00d7R",
+      "n": 0,
+      "hit_rate": null,
+      "expectancy_r": null
+    },
+    {
+      "bucket": "2.0\u20132.5\u00d7R",
+      "n": 0,
+      "hit_rate": null,
+      "expectancy_r": null
+    },
+    {
+      "bucket": "2.5\u20133.0\u00d7R",
+      "n": 0,
+      "hit_rate": null,
+      "expectancy_r": null
+    },
+    {
+      "bucket": "3.0+\u00d7R",
+      "n": 0,
+      "hit_rate": null,
+      "expectancy_r": null
+    }
+  ],
+  "target_atr_buckets": [
+    {
+      "bucket": "<1.0 ATR",
+      "n": 0,
+      "hit_rate": null,
+      "expectancy_r": null
+    },
+    {
+      "bucket": "1.0\u20131.5 ATR",
+      "n": 0,
+      "hit_rate": null,
+      "expectancy_r": null
+    },
+    {
+      "bucket": "1.5\u20132.0 ATR",
+      "n": 0,
+      "hit_rate": null,
+      "expectancy_r": null
+    },
+    {
+      "bucket": "2.0\u20132.5 ATR",
+      "n": 0,
+      "hit_rate": null,
+      "expectancy_r": null
+    },
+    {
+      "bucket": "2.5+ ATR",
+      "n": 0,
+      "hit_rate": null,
+      "expectancy_r": null
+    }
+  ],
+  "biases": [
+    "**Survivorship bias** \u2014 universe contains currently-listed names only; delisted/bankrupt names are absent. Results are optimistic relative to the real investable universe at each historical date.",
+    "**Look-ahead bias (fundamentals)** \u2014 quality fields (market cap, profitability, debt/equity, sector) reflect present-day values applied to all historical dates. A name that went from small-cap to mid-cap during the backtest period may have been misclassified in early dates."
+  ],
+  "run_meta": {
+    "strategy": "pullback",
+    "universe_size": 16,
+    "start": "2024-01-01",
+    "end": "2024-03-31",
+    "earnings_gate": "on",
+    "capture_near_misses": 1,
+    "time_stop": 10,
+    "entry": "next_open",
+    "git_hash": "d5be283",
+    "total_signals": 26,
+    "qualified_signals": 0
+  },
+  "trades": []
+}
