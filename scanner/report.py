@@ -122,6 +122,26 @@ def _fmt_wl_value(metric: str, v: Optional[float]) -> str:
     return f"{v:.2f}"
 
 
+def _fmt_wl_delta(metric: str, v: Optional[float]) -> str:
+    """Format a W/L delta value with explicit +/- sign (mirrors Angular fmtWlDelta)."""
+    if v is None:
+        return "—"  # em dash
+    sign = '+' if v >= 0 else ''
+    if metric == 'RSI at entry':
+        return f"{sign}{v:.1f}"
+    if metric == 'RVOL':
+        return f"{sign}{v:.2f}"
+    if metric == 'Pullback depth %':
+        return f"{sign}{v:.1f}%"
+    if metric == 'ATR multiple':
+        return f"{sign}{v:.2f}"
+    if metric == 'Industry momentum':
+        return f"{sign}{v:.1f}%"
+    if metric == 'Pct to 52w high':
+        return f"{sign}{v:.1f}%"
+    return f"{sign}{v:.2f}"
+
+
 def wl_characteristic_analysis(signals: list, qualified_trades: list) -> dict:
     """Pre-registered winner/loser characteristic analysis over 6 entry-time metrics.
 
@@ -237,7 +257,13 @@ def compute_metrics(trades: list[Trade]) -> dict:
     holding = sorted(
         t.holding_days for t in active if t.holding_days is not None
     )
-    median_hold = holding[len(holding) // 2] if holding else None
+    if not holding:
+        median_hold = None
+    elif len(holding) % 2 == 1:
+        median_hold = holding[len(holding) // 2]
+    else:
+        mid = len(holding) // 2
+        median_hold = (holding[mid - 1] + holding[mid]) / 2
 
     exit_counts = Counter(t.exit_reason for t in trades if t.qualified)
 
@@ -731,7 +757,7 @@ def render_report(
                 for row in s['rows']:
                     w_fmt = _fmt_wl_value(row['metric'], row['winners_median'])
                     l_fmt = _fmt_wl_value(row['metric'], row['losers_median'])
-                    d_fmt = _fmt_wl_value(row['metric'], row['delta'])
+                    d_fmt = _fmt_wl_delta(row['metric'], row['delta'])
                     lines.append(f"| {row['metric']} | {w_fmt} | {l_fmt} | {d_fmt} |")
                 lines.append("")
     lines.append("")
@@ -762,8 +788,8 @@ def render_report(
     )
     earn_skip_pct = earn_skip_n / len(signals) if signals else 0.0
     lines.append(
-        f"**Earnings gate skip rate** — {earn_skip_pct:.1%} of signals had no earnings "
-        "data and were evaluated without the earnings-proximity gate."
+        f"**Earnings gate skip rate** — {earn_skip_pct:.1%} of signals failed the "
+        "earnings-proximity gate (earnings within 7 days of entry)."
     )
     lines.append(
         f"\n**Gap-skip rate** — {gap_skip_pct:.1%} of simulated entries were skipped "
@@ -774,13 +800,13 @@ def render_report(
     md = "\n".join(lines)
 
     # ── Trade list ────────────────────────────────────────────────────────────
-    # Map (signal_date_str, ticker) → Signal so each Trade can pull stop/target
-    sig_by_key = {(str(s.date), s.ticker): s for s in signals}
+    # Map (signal_date_str, ticker, strategy) → Signal so each Trade can pull stop/target
+    sig_by_key = {(str(s.date), s.ticker, s.strategy): s for s in signals}
     trades_list = []
     for t in qualified_trades:
         if t.exit_reason == "incomplete":
             continue
-        sig = sig_by_key.get((str(t.signal_date), t.ticker))
+        sig = sig_by_key.get((str(t.signal_date), t.ticker, t.strategy))
         trades_list.append({
             "ticker":       t.ticker,
             "signal_date":  str(t.signal_date),
