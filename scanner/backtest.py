@@ -334,8 +334,7 @@ def generate_signals(
             _mom = _st.get("industry_mom_20d")
             if _etf is not None and _mom is not None and _etf not in day_etf_scores:
                 day_etf_scores[_etf] = _mom
-        import pandas as _pd
-        day_rank = _pd.Series(day_etf_scores).rank(pct=True) if len(day_etf_scores) >= 2 else _pd.Series(dtype=float)
+        day_rank = pd.Series(day_etf_scores).rank(pct=True) if len(day_etf_scores) >= 2 else pd.Series(dtype=float)
 
         for ticker, full_daily in bars_by_ticker.items():
             # Slice daily once per ticker×day; reuse for both ctx and fn()
@@ -374,7 +373,7 @@ def generate_signals(
             # Attach risk (stop, target, atr, rr)
             try:
                 result = _targets.attach_risk(result, daily_sliced)
-            except Exception:
+            except (ValueError, AttributeError, KeyError, IndexError):
                 pass
 
             if result.suggested_stop is None or result.suggested_target is None:
@@ -393,6 +392,7 @@ def generate_signals(
                     result.suggested_target,
                 )
                 from scanner.strategies.pullback import PullbackResult
+                from scanner.strategies.breakout import BreakoutResult
                 weekly_aligned = False
                 if isinstance(result, PullbackResult):
                     weekly_aligned = result.weekly_above_30ma
@@ -403,7 +403,8 @@ def generate_signals(
                 # Use pre-computed slope/MACD when available (avoids recomputing on sliced df)
                 if precomp_t is not None:
                     slope_val   = float(precomp_t.sma_slope.asof(as_of_ts))
-                    macd_val    = bool(precomp_t.macd_bullish.asof(as_of_ts))
+                    _macd_raw   = precomp_t.macd_bullish.asof(as_of_ts)
+                    macd_val    = bool(_macd_raw) if not pd.isna(_macd_raw) else False
                 else:
                     slope_val   = _sma_slope(daily_sliced)
                     macd_val    = _macd_bullish(daily_sliced)
@@ -420,7 +421,7 @@ def generate_signals(
                     ath_zone_label=zone_label,
                 )
                 result = dataclasses.replace(result, confidence=conf)
-            except Exception:
+            except (ValueError, AttributeError, KeyError, IndexError):
                 pass
 
             # Industry momentum — reuse per-day cached strength (sliced_market only)
@@ -429,10 +430,10 @@ def generate_signals(
             _rank_pct: Optional[float] = None
             if _etf is not None and _etf in day_rank.index:
                 _rv = day_rank[_etf]
-                _rank_pct = float(_rv) if not _pd.isna(_rv) else None
+                _rank_pct = float(_rv) if not pd.isna(_rv) else None
             _q_sig = quality_by_ticker.get(ticker)
             # Phase 4 — W/L entry-time metric extraction (strategy-polymorphic via getattr)
-            _is_breakout_result = getattr(result, 'vol_ratio', None) is not None
+            _is_breakout_result = isinstance(result, BreakoutResult)
             _rsi = getattr(result, 'rsi', None)
             _rvol = getattr(result, 'vol_ratio', None)   # BreakoutResult only
             if _rvol is None and precomp_t is not None:
