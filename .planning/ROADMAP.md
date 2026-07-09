@@ -39,7 +39,10 @@ Full details: [.planning/milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   3. On a second run, sector classifications load from the Parquet cache without re-querying yfinance
   4. Tickers with under 2 years of history in the lookback window are skipped, and the skipped tickers plus a count are logged; a missing or corrupt cache file for one ticker is skipped and logged rather than aborting the run
   5. Daily adjusted-close history is read from the existing `data_store.get_history` cache, hitting yfinance only on a cache miss
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 05-01-PLAN.md — scanner/sector_store.py: Parquet per-ticker GICS-sector cache (SEAS-01)
+- [ ] 05-02-PLAN.md — scanner/seasonality.py: sector validation + universe filter + history validation pipeline (SEAS-01..05)
+- [ ] 05-03-PLAN.md — seasonality_by_week.py: thin CLI entry point (SEAS-01, SEAS-02)
 
 ### Phase 6: Seasonality Statistics & Verification
 **Goal**: The tool computes honest per-week seasonality statistics with year-block bootstrap confidence intervals and proves its detection accuracy against synthetic data.
