@@ -8,6 +8,17 @@ TraderAssist is a personal swing trading scanner that identifies pullback and br
 
 Surface high-quality swing trade setups where the signal has a genuine edge — not just gate compliance.
 
+## Current Milestone: v1.1 Weekly Seasonality Analyzer
+
+**Goal:** Add a standalone CLI tool that tests whether stocks in a given sector show statistically significant calendar-week seasonality, using a year-block bootstrap for honest confidence intervals (not naive daily resampling, which understates uncertainty given cross-sectional correlation within a sector).
+
+**Target features:**
+- `seasonality_by_week.py` CLI at repo root — `--sector`, `--years`, `--universe` (required), `--output`, `--bootstrap-iters`, `--seed`
+- New `scanner/sector_store.py` — ticker→GICS sector cache (yfinance `info['sector']`, Parquet-cached like `earnings_store.py`), reused across runs
+- Reuses `scanner/data_store.py get_history()` for cached daily OHLCV; yfinance fallback only on cache miss
+- ISO-week aggregation (week 53 merged into 52) with year-block bootstrap CI and significance flagging (CI excludes zero)
+- Synthetic-data test suite proving true-positive detection and bounded false-positive rate
+
 ## Requirements
 
 ### Validated
@@ -110,4 +121,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-02 after v1.0 Signal Quality milestone*
+*Last updated: 2026-07-09 — v1.1 Weekly Seasonality Analyzer milestone started*
