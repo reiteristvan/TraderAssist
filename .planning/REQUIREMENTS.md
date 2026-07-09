@@ -45,4 +45,22 @@
 
 ## Traceability
 
-(Filled by roadmap during phase creation)
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| SEAS-01 | Phase 5 | Pending |
+| SEAS-02 | Phase 5 | Pending |
+| SEAS-03 | Phase 5 | Pending |
+| SEAS-04 | Phase 5 | Pending |
+| SEAS-05 | Phase 5 | Pending |
+| SEAS-06 | Phase 6 | Pending |
+| SEAS-07 | Phase 6 | Pending |
+| SEAS-08 | Phase 6 | Pending |
+| SEAS-09 | Phase 6 | Pending |
+| SEAS-10 | Phase 7 | Pending |
+| SEAS-11 | Phase 7 | Pending |
+| SEAS-12 | Phase 7 | Pending |
+| SEAS-13 | Phase 7 | Pending |
+| SEAS-14 | Phase 6 | Pending |
+| SEAS-15 | Phase 6 | Pending |
+
+**Coverage:** 15/15 v1 requirements mapped ✓

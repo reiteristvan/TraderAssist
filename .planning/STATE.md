@@ -6,7 +6,7 @@ status: planning
 last_updated: "2026-07-09T11:51:18.120Z"
 last_activity: 2026-07-09
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,21 +17,23 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-07-02)
+See: .planning/PROJECT.md (updated 2026-07-09)
 
 **Core value:** Surface high-quality swing trade setups where the signal has a genuine edge — not just gate compliance.
-**Current focus:** v1.0 shipped — planning next milestone
+**Current focus:** v1.1 Phase 5 — Sector Resolution & Data Input
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-07-09 — Milestone v1.1 started
+Phase: 5 of 7 (Sector Resolution & Data Input) — first phase of v1.1
+Plan: — (ready to plan)
+Status: Ready to plan
+Last activity: 2026-07-09 — v1.1 roadmap created (Phases 5–7, SEAS-01..15 mapped)
+
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
-**By Phase:**
+**By Phase (v1.0):**
 
 | Phase | Plans | Duration | Tasks | Files |
 |-------|-------|----------|-------|-------|
@@ -44,20 +46,20 @@ Last activity: 2026-07-09 — Milestone v1.1 started
 | Phase 04 P01 | 1 | ~4m | 3 | 4 |
 | Phase 04 P02 | 1 | ~13m | 3 | 5 |
 
-**Total:** 8 plans, ~20 tasks, ~57 min execution time, 103 files changed
+**v1.0 Total:** 8 plans, ~20 tasks, ~57 min execution time, 103 files changed
 
 ## Accumulated Context
 
-### Key Decisions (v1.0)
+### Key Decisions (carried into v1.1)
 
-- Display-only for industry momentum — gate promotion deferred to v2 pending backtest evidence
-- `WL_FEATURES` pre-registration pattern established as anti-cherry-picking protocol
-- Schema v9 (v7/v8 already consumed by prior epics)
-- 3-tuple signal key `(date, ticker, strategy)` in W/L analysis for mixed-strategy runs
-- `industry_above_50ma` stored as int (0/1), not Python bool
-- `bool(NaN)` evaluates to True — always guard pre-warm-up signal fields with `pd.isna()`
+- Diagnostic-only: seasonality tool is standalone CLI + CSV — no scan/backtest/UI wiring, no schema bump
+- Year-block bootstrap (not naive daily resampling) — honest CI given cross-sectional correlation within a sector
+- Significance = 95% CI excludes zero; no tuning to manufacture significance (anti-cherry-picking discipline)
+- GICS sector granularity only — sub-sector/industry seasonality out of scope for v1.1
+- Survivorship bias documented via warning, not corrected (current constituents only)
+- `bool(NaN)` evaluates to True — always guard signal fields with `pd.isna()` (v1.0 lesson)
 
-### Deferred Items
+### Deferred Items (v2 — unrelated to this milestone)
 
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
@@ -68,10 +70,10 @@ Last activity: 2026-07-09 — Milestone v1.1 started
 
 ### Open Blockers
 
-None — milestone complete.
+None.
 
 ## Session Continuity
 
-Last session: 2026-07-02T08:10:00.000Z
-Stopped at: v1.0 milestone archived
+Last session: 2026-07-09
+Stopped at: v1.1 roadmap created (Phases 5–7)
 Resume file: None
