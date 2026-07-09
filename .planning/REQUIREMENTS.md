@@ -5,13 +5,13 @@
 ### Sector Resolution
 
 - [x] **SEAS-01**: User can filter a universe (sp500/sp400/sp600/all) down to tickers in a given GICS sector, matched case-insensitively, via a persisted ticker→sector cache
-- [ ] **SEAS-02**: If the sector name doesn't match any known GICS sector, the script fails with a clear error listing valid sector names
+- [x] **SEAS-02**: If the sector name doesn't match any known GICS sector, the script fails with a clear error listing valid sector names
 
 ### Data Handling
 
-- [ ] **SEAS-03**: Script reuses the existing OHLCV cache (`data_store.get_history`) for daily adjusted close, falling back to yfinance only on cache miss
-- [ ] **SEAS-04**: Tickers with less than 2 years of history in the lookback window are skipped, with skipped tickers and count logged
-- [ ] **SEAS-05**: A missing/corrupt ticker cache file does not abort the run — it's skipped and logged like any other data gap
+- [x] **SEAS-03**: Script reuses the existing OHLCV cache (`data_store.get_history`) for daily adjusted close, falling back to yfinance only on cache miss
+- [x] **SEAS-04**: Tickers with less than 2 years of history in the lookback window are skipped, with skipped tickers and count logged
+- [x] **SEAS-05**: A missing/corrupt ticker cache file does not abort the run — it's skipped and logged like any other data gap
 
 ### Seasonality Statistics
 
@@ -48,10 +48,10 @@
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | SEAS-01 | Phase 5 | Complete |
-| SEAS-02 | Phase 5 | Pending |
-| SEAS-03 | Phase 5 | Pending |
-| SEAS-04 | Phase 5 | Pending |
-| SEAS-05 | Phase 5 | Pending |
+| SEAS-02 | Phase 5 | Complete |
+| SEAS-03 | Phase 5 | Complete |
+| SEAS-04 | Phase 5 | Complete |
+| SEAS-05 | Phase 5 | Complete |
 | SEAS-06 | Phase 6 | Pending |
 | SEAS-07 | Phase 6 | Pending |
 | SEAS-08 | Phase 6 | Pending |
