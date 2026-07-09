@@ -4,7 +4,7 @@
 
 ### Sector Resolution
 
-- [ ] **SEAS-01**: User can filter a universe (sp500/sp400/sp600/all) down to tickers in a given GICS sector, matched case-insensitively, via a persisted ticker→sector cache
+- [x] **SEAS-01**: User can filter a universe (sp500/sp400/sp600/all) down to tickers in a given GICS sector, matched case-insensitively, via a persisted ticker→sector cache
 - [ ] **SEAS-02**: If the sector name doesn't match any known GICS sector, the script fails with a clear error listing valid sector names
 
 ### Data Handling
@@ -47,7 +47,7 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SEAS-01 | Phase 5 | Pending |
+| SEAS-01 | Phase 5 | Complete |
 | SEAS-02 | Phase 5 | Pending |
 | SEAS-03 | Phase 5 | Pending |
 | SEAS-04 | Phase 5 | Pending |
