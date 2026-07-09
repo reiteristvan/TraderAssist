@@ -29,6 +29,16 @@ _UNIVERSE_PATHS = {
     "all": Path("universes/sp_all.txt"),
 }
 
+_MIN_HISTORY_DAYS = 730
+
+
+@dataclass
+class SectorDataset:
+    sector: str
+    universe: str
+    frames: dict[str, pd.DataFrame] = field(default_factory=dict)
+    skipped: list[tuple[str, str]] = field(default_factory=list)
+
 
 def valid_sectors() -> list[str]:
     """Return the canonical GICS sector names, sorted."""
@@ -91,3 +101,70 @@ def resolve_sector_universe(
         # else: different sector — drop silently, not a skip
 
     return matched, skipped
+
+
+def validate_history(
+    tickers: list[str],
+    years: int | None = None,
+    as_of: date | None = None,
+) -> tuple[dict[str, pd.DataFrame], list[tuple[str, str]]]:
+    """Validate each ticker has >= 2 years of raw cached history (SEAS-04).
+
+    A missing/corrupt cache (get_history returns None) is skipped with
+    reason 'no-data' (SEAS-05) rather than aborting the batch. The >=2yr
+    admission check runs on the RAW cached history, independent of
+    `years` (D-05/D-06); `years`, if given, only trims an admitted frame
+    afterward.
+    """
+    from scanner.data_store import get_history
+
+    frames: dict[str, pd.DataFrame] = {}
+    skipped: list[tuple[str, str]] = []
+
+    for ticker in tickers:
+        try:
+            df = get_history(ticker, end=as_of)
+            if df is None:
+                skipped.append((ticker, "no-data"))
+                continue
+
+            span_days = (df.index.max() - df.index.min()).days
+            if span_days < _MIN_HISTORY_DAYS:
+                skipped.append((ticker, "insufficient-history"))
+                continue
+
+            if years is not None:
+                cutoff = df.index.max() - pd.DateOffset(years=years)
+                df = df[df.index >= cutoff]
+
+            frames[ticker] = df
+        except Exception as exc:
+            _log.warning("validate_history: %s failed: %s", ticker, exc)
+            skipped.append((ticker, "error"))
+
+    _log.info("validate_history: %d admitted, %d skipped", len(frames), len(skipped))
+    return frames, skipped
+
+
+def load_sector_dataset(
+    sector: str,
+    universe: str,
+    years: int | None = None,
+    as_of: date | None = None,
+) -> SectorDataset:
+    """Resolve sector + universe, filter to sector, validate history.
+
+    Validates the sector FIRST so an invalid sector raises before any
+    universe/history work is done (SEAS-02 "without running any analysis").
+    """
+    canonical = resolve_sector(sector)
+    path = universe_path(universe)
+    tickers = load_universe_file(path)
+    matched, skipped_sector = resolve_sector_universe(canonical, tickers)
+    frames, skipped_hist = validate_history(matched, years=years, as_of=as_of)
+    return SectorDataset(
+        sector=canonical,
+        universe=universe.lower(),
+        frames=frames,
+        skipped=skipped_sector + skipped_hist,
+    )
