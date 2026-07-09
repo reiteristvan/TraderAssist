@@ -23,7 +23,7 @@ Full details: [.planning/milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 **Milestone Goal:** Add a standalone CLI tool (`seasonality_by_week.py`) that tests whether stocks in a given GICS sector show statistically significant calendar-week seasonality, using a year-block bootstrap for honest confidence intervals. Diagnostic-only — no wiring into the nightly scan/backtest/UI pipeline, no schema changes.
 
-- [ ] **Phase 5: Sector Resolution & Data Input** - Resolve a sector's tickers via a persisted cache and gather validated daily history ready for analysis
+- [x] **Phase 5: Sector Resolution & Data Input** - Resolve a sector's tickers via a persisted cache and gather validated daily history ready for analysis (completed 2026-07-09)
 - [ ] **Phase 6: Seasonality Statistics & Verification** - Per-week bootstrap statistics with CI-based significance flagging, proven on synthetic data
 - [ ] **Phase 7: CLI Output & Reporting** - Table, interpretive summary, survivorship warning, and optional CSV export
 
@@ -42,7 +42,7 @@ Full details: [.planning/milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   4. Tickers with under 2 years of history in the lookback window are skipped, and the skipped tickers plus a count are logged; a missing or corrupt cache file for one ticker is skipped and logged rather than aborting the run
   5. Daily adjusted-close history is read from the existing `data_store.get_history` cache, hitting yfinance only on a cache miss
 
-**Plans**: 2/3 plans executed
+**Plans**: 3/3 plans complete
 **Wave 1**
 
 - [x] 05-01-PLAN.md — scanner/sector_store.py: Parquet per-ticker GICS-sector cache (SEAS-01)
@@ -53,7 +53,7 @@ Full details: [.planning/milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 05-03-PLAN.md — seasonality_by_week.py: thin CLI entry point (SEAS-01, SEAS-02)
+- [x] 05-03-PLAN.md — seasonality_by_week.py: thin CLI entry point (SEAS-01, SEAS-02)
 
 ### Phase 6: Seasonality Statistics & Verification
 
@@ -95,6 +95,6 @@ Phases execute in numeric order: 5 → 6 → 7
 | 2. Industry Momentum Computation + Schema v7 | v1.0 | 2/2 | Complete | 2026-07-01 |
 | 3. Industry Display in CLI + Web UI | v1.0 | 2/2 | Complete | 2026-07-01 |
 | 4. Winner/Loser Characteristic Analysis | v1.0 | 2/2 | Complete | 2026-07-01 |
-| 5. Sector Resolution & Data Input | v1.1 | 2/3 | In Progress|  |
+| 5. Sector Resolution & Data Input | v1.1 | 3/3 | Complete   | 2026-07-09 |
 | 6. Seasonality Statistics & Verification | v1.1 | 0/TBD | Not started | - |
 | 7. CLI Output & Reporting | v1.1 | 0/TBD | Not started | - |
