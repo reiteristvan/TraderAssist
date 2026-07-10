@@ -7,12 +7,16 @@ skipped counts). An unknown --sector exits non-zero listing valid GICS sector
 names, without running any analysis (SEAS-02).
 
 Phase 6 (SEAS-08) wires --bootstrap-iters/--seed through to
-scanner.seasonality.compute_seasonality_stats, printing a plain per-run
-summary (baseline, years, iters, seed, significant-week count). --output
-remains declared for Phase 7 but is not consumed by any logic yet.
+scanner.seasonality.compute_seasonality_stats.
 
-See .planning/phases/05-sector-resolution-data-input/05-03-PLAN.md and
-.planning/phases/06-seasonality-statistics-verification/06-03-PLAN.md.
+Phase 7 (SEAS-10..13) prints the survivorship-bias warning header, the
+52-row per-week table, and the interpretive summary on every run, and
+additionally writes the padded table to CSV when --output is given
+(stdout always happens regardless of --output, D-14).
+
+See .planning/phases/05-sector-resolution-data-input/05-03-PLAN.md,
+.planning/phases/06-seasonality-statistics-verification/06-03-PLAN.md, and
+.planning/phases/07-cli-output-reporting/07-02-PLAN.md.
 """
 from __future__ import annotations
 
@@ -44,7 +48,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--output", default=None,
-        help="Output path for results (consumed in a later phase; not used yet)",
+        help="Write the padded 52-row results table to this CSV path (additive -- "
+        "stdout output always prints regardless of --output)",
     )
     parser.add_argument(
         "--bootstrap-iters", type=int, default=None,
@@ -79,12 +84,22 @@ def main(argv: list[str] | None = None) -> int:
         for ticker, reason in preview:
             print(f"  {ticker}: {reason}")
 
-    significant_count = int(result.weeks["significant"].sum())
     print(
-        f"Baseline: {result.baseline_mean_bps:.4f} bps/day  Years: {result.n_years}  "
-        f"Bootstrap iters: {result.bootstrap_iters}  Seed: {result.seed}"
+        f"Bootstrap iters: {result.bootstrap_iters}  Seed: {result.seed}  "
+        f"Years: {result.n_years}"
     )
-    print(f"Significant weeks: {significant_count} of {len(result.weeks)}")
+    print()
+    print(seasonality._SURVIVORSHIP_WARNING)
+    print()
+
+    padded = seasonality.pad_weeks_table(result)
+    print(seasonality.render_weeks_table(padded))
+    print()
+    print(seasonality.build_summary(result))
+
+    if args.output:
+        seasonality.write_weeks_csv(padded, args.output)
+        print(f"\nSaved → {args.output}")
 
     return 0
 
