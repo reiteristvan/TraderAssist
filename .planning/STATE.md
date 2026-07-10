@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Weekly Seasonality Analyzer
-current_phase: 6
+current_phase: 06
 current_phase_name: Seasonality Statistics & Verification
 status: executing
 stopped_at: Phase 6 context gathered
-last_updated: "2026-07-10T09:21:44.631Z"
+last_updated: "2026-07-10T09:33:51.331Z"
 last_activity: 2026-07-10
-last_activity_desc: Phase 05 complete, transitioned to Phase 6
+last_activity_desc: Phase 06 execution started
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
+  total_plans: 6
+  completed_plans: 4
   percent: 33
 ---
 
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-09)
 
 **Core value:** Surface high-quality swing trade setups where the signal has a genuine edge — not just gate compliance.
-**Current focus:** Phase 05 — sector-resolution-data-input
+**Current focus:** Phase 06 — Seasonality Statistics & Verification
 
 ## Current Position
 
-Phase: 6 — Seasonality Statistics & Verification
-Plan: Not started
+Phase: 06 (Seasonality Statistics & Verification) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-07-10 — Phase 05 complete, transitioned to Phase 6
+Last activity: 2026-07-10 — Phase 06 execution started
 
 Progress: [██████████] 100%
 
@@ -54,6 +54,7 @@ Progress: [██████████] 100%
 | Phase 05 P01 | 2min | 2 tasks | 2 files |
 | Phase 05 P02 | 14min | 3 tasks | 2 files |
 | Phase 05 P03 | 11min | 2 tasks | 2 files |
+| Phase 06 P01 | 10min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -81,7 +82,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-07-10T08:34:31.964Z
+Last session: 2026-07-10T09:30:49.878Z
 Stopped at: Phase 6 context gathered
 Resume file: .planning/phases/06-seasonality-statistics-verification/06-CONTEXT.md
 
@@ -94,3 +95,5 @@ Resume file: .planning/phases/06-seasonality-statistics-verification/06-CONTEXT.
 - [Phase 05]: validate_history admission (>=2yr) is computed on raw get_history() output before any --years trim, per D-05/D-06
 - [Phase 05]: main() prints fixed-format 'Admitted: N  Skipped: N' labels so tests can assert stable substrings
 - [Phase 05]: Skipped-ticker preview capped at 10 pairs to keep stdout readable for the all universe
+- [Phase 06]: Baseline for delta_vs_baseline_bps is the flat pooled mean over every ticker-day row (D-01), not an average of per-week means
+- [Phase 06]: week_observed_stats returns only weeks present in the panel — no padding to 52 rows (Phase 7's concern)
