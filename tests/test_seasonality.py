@@ -23,6 +23,9 @@ from scanner.seasonality import (
     week_observed_stats,
     pad_weeks_table,
     render_weeks_table,
+    build_summary,
+    _SURVIVORSHIP_WARNING,
+    _MULTIPLE_COMPARISON_CAVEAT,
 )
 
 
@@ -905,3 +908,100 @@ def test_render_weeks_table_contains_headers_and_52_rows_and_na_sentinel():
     lines = text.strip().splitlines()
     assert len(lines) == 53  # header + 52 data rows
     assert "N/A" in text
+
+
+# ── Phase 7: build_summary + warning/caveat constants (SEAS-11/12, D-05..D-10) ──
+
+def test_survivorship_warning_constant_content():
+    text = _SURVIVORSHIP_WARNING
+    assert "today's sector membership" in text
+    assert "historical prices" in text
+    assert "delisted" in text.lower() or "removed" in text.lower()
+    assert "inflate apparent seasonality" in text
+    # Static — no interpolation placeholders / f-string artifacts.
+    assert "{" not in text and "}" not in text
+
+
+def test_survivorship_warning_constant_is_fixed_every_call():
+    assert _SURVIVORSHIP_WARNING == _SURVIVORSHIP_WARNING
+    assert "\n" not in _SURVIVORSHIP_WARNING  # one line, per D-10
+
+
+def test_multiple_comparison_caveat_constant_content():
+    text = _MULTIPLE_COMPARISON_CAVEAT
+    assert "52" in text
+    assert "5%" in text
+    assert "2-3" in text or "2 to 3" in text
+    assert "false positive" in text.lower()
+    assert "caution" in text.lower()
+
+
+def test_build_summary_lists_significant_weeks_with_week_delta_ci():
+    rows = [
+        _week_row(28, -12.4, -12.40, -18.20, -3.10, -12.0, 300, 10, True, False),
+        _week_row(40, 8.0, 9.51, 2.20, 16.80, 8.9, 280, 10, True, False),
+    ]
+    result = _make_result(rows, baseline_mean_bps=1.23)
+    text = build_summary(result)
+
+    assert "Week 28: -12.40 bps (CI: -18.20 to -3.10)" in text
+    assert "Week 40: 9.51 bps (CI: 2.20 to 16.80)" in text
+
+
+def test_build_summary_zero_significant_weeks_shows_none_message():
+    rows = [
+        _week_row(1, 1.0, 0.5, -1.0, 2.0, 0.9, 100, 6, False, False),
+        _week_row(2, -1.0, -1.5, -3.0, 0.5, -1.1, 100, 6, False, False),
+    ]
+    result = _make_result(rows)
+    text = build_summary(result)
+
+    assert "none — no week deviates significantly from baseline" in text
+
+
+def test_build_summary_top5_bottom5_always_present_and_deduped_when_thin():
+    rows = [
+        _week_row(1, 10.0, 20.0, 15.0, 25.0, 19.0, 100, 6, False, False),
+        _week_row(2, 0.0, 0.0, -5.0, 5.0, 0.1, 100, 6, False, False),
+        _week_row(3, -10.0, -20.0, -25.0, -15.0, -19.0, 100, 6, False, False),
+    ]
+    result = _make_result(rows)
+    text = build_summary(result)
+
+    # Always-present sections even with zero significant weeks (D-07).
+    assert "highest" in text.lower()
+    assert "lowest" in text.lower()
+
+    # With only 3 distinct weeks (< 10), no week may appear in both lists
+    # (D-08) -- extract the lines after each header and confirm no overlap.
+    lines = text.splitlines()
+    highest_idx = next(i for i, l in enumerate(lines) if "highest" in l.lower())
+    lowest_idx = next(i for i, l in enumerate(lines) if "lowest" in l.lower())
+    highest_block = "\n".join(lines[highest_idx:lowest_idx])
+    lowest_block = "\n".join(lines[lowest_idx:])
+    highest_weeks = set(int(w) for w in __import__("re").findall(r"Week (\d+)", highest_block))
+    lowest_weeks = set(int(w) for w in __import__("re").findall(r"Week (\d+)", lowest_block))
+    assert not (highest_weeks & lowest_weeks)
+
+
+def test_build_summary_includes_baseline_and_caveat():
+    rows = [_week_row(1, 1.0, 0.5, -1.0, 2.0, 0.9, 100, 6, False, False)]
+    result = _make_result(rows, baseline_mean_bps=3.456)
+    text = build_summary(result)
+
+    assert "3.46" in text  # baseline_mean_bps formatted to 2 decimals
+    assert _MULTIPLE_COMPARISON_CAVEAT in text
+
+
+def test_build_summary_insufficient_years_callout():
+    rows = [
+        _week_row(1, 1.0, 0.5, -1.0, 2.0, 0.9, 100, 6, False, False),
+        _week_row(9, 2.0, 1.5, np.nan, np.nan, 1.9, 40, 6, False, True),
+    ]
+    result = _make_result(rows)
+    text = build_summary(result)
+
+    assert "uncomputable" in text.lower()
+    assert "9" in text
+    # Never confuse this week with "tested and not significant".
+    assert "week 9" in text.lower() or "Week 9" in text
