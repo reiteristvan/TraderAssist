@@ -48,6 +48,13 @@ _MIN_BOOTSTRAP_YEARS = 5
 _DEFAULT_BOOTSTRAP_ITERS = 1000
 _DEFAULT_SEED = 42
 
+# WR-02: a documented sane ceiling on user-supplied --bootstrap-iters. Without
+# it, a large/typo'd value drives a (iters, n_years)/(iters, 52)-shaped
+# allocation straight to an unhandled MemoryError/_ArrayMemoryError instead of
+# the descriptive ValueError-with-message path every other validation in this
+# module uses.
+_MAX_BOOTSTRAP_ITERS = 100_000
+
 
 @dataclass
 class SectorDataset:
@@ -306,6 +313,8 @@ def bootstrap_week_ci(panel: pd.DataFrame, iters: int, seed: int) -> pd.DataFram
     fixed at the observed value. Significance is a pure CI-excludes-zero rule
     (SEAS-09), no p-value/test statistic. Uses `numpy.random.default_rng`
     (never the legacy global `np.random.seed`) for reproducibility (D-04).
+    Raises ValueError before any array is allocated if `iters` is
+    non-positive or exceeds `_MAX_BOOTSTRAP_ITERS` (WR-02).
 
     Returns one row per week actually present in the panel, with columns
     [week, ci_low_bps, ci_high_bps, significant, insufficient_years], sorted
@@ -321,8 +330,10 @@ def bootstrap_week_ci(panel: pd.DataFrame, iters: int, seed: int) -> pd.DataFram
     anything was wrong. Downstream consumers (Phase 7) can therefore
     distinguish "not significant" from "cannot compute a CI."
     """
-    if iters <= 0:
-        raise ValueError(f"bootstrap-iters must be a positive integer, got {iters}")
+    if iters <= 0 or iters > _MAX_BOOTSTRAP_ITERS:
+        raise ValueError(
+            f"bootstrap-iters must be between 1 and {_MAX_BOOTSTRAP_ITERS}, got {iters}"
+        )
 
     years = np.sort(panel["iso_year"].unique())
     n_years = len(years)

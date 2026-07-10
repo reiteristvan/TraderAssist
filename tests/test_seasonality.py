@@ -474,6 +474,20 @@ def test_bootstrap_ci_iters_negative_raises():
         bootstrap_week_ci(panel, iters=-5, seed=42)
 
 
+def test_bootstrap_ci_iters_above_ceiling_raises():
+    """WR-02: an unreasonably large --bootstrap-iters must fail with the
+    module's descriptive ValueError, not an unhandled MemoryError."""
+    panel = _build_bootstrap_panel(n_years=6, n_tickers=2, weeks=[1], seed=1)
+    with pytest.raises(ValueError, match="bootstrap-iters"):
+        bootstrap_week_ci(panel, iters=100_000_000_000, seed=42)
+
+
+def test_bootstrap_ci_iters_at_ceiling_does_not_raise():
+    panel = _build_bootstrap_panel(n_years=6, n_tickers=2, weeks=[1], seed=1)
+    result = bootstrap_week_ci(panel, iters=1, seed=42)
+    assert not result.empty
+
+
 def _build_sparse_week_panel(n_years: int, full_weeks: list[int], sparse_week: int) -> pd.DataFrame:
     """Panel where `sparse_week` is present in the overall panel but only in
     the FIRST distinct year (missing from every other year), while
