@@ -94,7 +94,15 @@ Full details: [.planning/milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   3. A one-line survivorship-bias warning appears in the output header
   4. Passing `--output <path>` writes the results table to CSV, while stdout output still happens regardless
 
-**Plans**: TBD
+**Plans**: 2 plans
+
+**Wave 1**
+
+- [ ] 07-01-PLAN.md — scanner/seasonality.py: pad_weeks_table, render_weeks_table, build_summary, write_weeks_csv + survivorship/caveat constants (SEAS-10..13)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 07-02-PLAN.md — seasonality_by_week.py::main: wire header + 52-row table + summary + optional CSV export (SEAS-10..13)
 
 ## Progress
 
@@ -109,4 +117,4 @@ Phases execute in numeric order: 5 → 6 → 7
 | 4. Winner/Loser Characteristic Analysis | v1.0 | 2/2 | Complete | 2026-07-01 |
 | 5. Sector Resolution & Data Input | v1.1 | 3/3 | Complete    | 2026-07-09 |
 | 6. Seasonality Statistics & Verification | v1.1 | 3/3 | Complete    | 2026-07-10 |
-| 7. CLI Output & Reporting | v1.1 | 0/TBD | Not started | - |
+| 7. CLI Output & Reporting | v1.1 | 0/2 | Planned | - |
