@@ -571,3 +571,120 @@ def render_weeks_table(padded: pd.DataFrame) -> str:
     """
     columns = [c for c in _DISPLAY_COLUMNS if c in padded.columns]
     return padded[columns].to_string(index=False)
+
+
+# Static, non-interpolated survivorship-bias warning (D-09/D-10, SEAS-12):
+# explains the actual mechanism (today's sector membership applied to full
+# historical price series, delisted/removed tickers excluded) rather than a
+# generic one-liner. One line, identical every run -- the bias mechanism is
+# structural (how sector_store + data_store.get_history work together), not
+# run-specific. Printed verbatim by the CLI header (Plan 02), in the
+# `_`-prefixed static-string style of report.py's `_BIAS_SURVIVORSHIP`.
+_SURVIVORSHIP_WARNING = (
+    "Survivorship bias: this analysis applies today's sector membership to each "
+    "ticker's full historical prices -- it does not reconstruct historical sector "
+    "membership, and delisted/removed tickers are excluded entirely, which can "
+    "inflate apparent seasonality."
+)
+
+# Static multiple-comparison caveat (D-05, SEAS-11): spells out the actual
+# false-positive math (tied to Phase 6's SEAS-15 expectation) instead of a
+# generic "not corrected for multiple comparisons" disclaimer.
+_MULTIPLE_COMPARISON_CAVEAT = (
+    "Multiple-comparison caveat: this analysis runs 52 independent significance "
+    "tests (one per calendar week) at the standard ~5% significance level. By "
+    "chance alone, roughly 2-3 false positives are expected among those 52 tests "
+    "even if there is zero real seasonal effect. Treat any single flagged week "
+    "with caution -- on its own it is weak evidence, not proof of a tradable "
+    "seasonal edge."
+)
+
+
+def build_summary(result: SeasonalityResult) -> str:
+    """Assemble the interpretive summary text block (D-02, D-05..D-09, SEAS-11/12).
+
+    Accumulates a list[str] and joins once (report.py's line-accumulation
+    idiom). Always includes: the baseline mean; the significant-weeks list
+    (week + delta + CI per entry, D-06) or the explicit none-message
+    (SEAS-11) when zero weeks qualify; the top-5-highest/bottom-5-lowest by
+    delta_vs_baseline_bps, always printed even with zero significant weeks
+    (D-07), deduplicated so no week appears in both lists when fewer than 10
+    distinct weeks exist (D-08); an explicit "uncomputable CI" callout for any
+    insufficient_years=True week so it is never confused with "tested and not
+    significant" (D-02); and the multiple-comparison caveat (D-05). Per the
+    07-CONTEXT.md <specifics> guidance, favors more explanatory phrasing over
+    terse. Does NOT print the survivorship warning -- that is the CLI's
+    header line (Plan 02); only the constant is exposed here. Every optional
+    numeric is guarded with pd.isna before formatting.
+    """
+    weeks = result.weeks
+    lines: list[str] = []
+
+    lines.append(f"Baseline mean daily return across the full sample: {result.baseline_mean_bps:.2f} bps")
+    lines.append("")
+
+    if weeks.empty:
+        significant = weeks
+    else:
+        significant = weeks[weeks["significant"] == True]  # noqa: E712
+
+    lines.append("Significant weeks (95% bootstrap CI excludes zero):")
+    if significant.empty:
+        lines.append("  none — no week deviates significantly from baseline")
+    else:
+        for rec in significant.sort_values("week").to_dict("records"):
+            lines.append(
+                f"  Week {int(rec['week'])}: {rec['delta_vs_baseline_bps']:.2f} bps "
+                f"(CI: {rec['ci_low_bps']:.2f} to {rec['ci_high_bps']:.2f})"
+            )
+    lines.append("")
+
+    # Top-5-highest / bottom-5-lowest by delta_vs_baseline_bps -- always
+    # printed as descriptive context, independent of significance (D-07).
+    # Deduplicated when fewer than 10 distinct weeks exist so no week is
+    # double-counted across both lists (D-08).
+    non_na = weeks.dropna(subset=["delta_vs_baseline_bps"]) if not weeks.empty else weeks
+    n_each = min(5, len(non_na))
+    if n_each > 0:
+        highest = non_na.sort_values("delta_vs_baseline_bps", ascending=False).head(n_each)
+        remaining = non_na[~non_na["week"].isin(highest["week"])]
+        lowest = remaining.sort_values("delta_vs_baseline_bps", ascending=True).head(n_each)
+    else:
+        highest = non_na
+        lowest = non_na
+
+    lines.append(f"Top {n_each} highest-delta weeks (largest positive deviation from baseline):")
+    if highest.empty:
+        lines.append("  none available")
+    else:
+        for rec in highest.to_dict("records"):
+            lines.append(f"  Week {int(rec['week'])}: {rec['delta_vs_baseline_bps']:.2f} bps")
+    lines.append("")
+
+    lines.append(f"Bottom {n_each} lowest-delta weeks (largest negative deviation from baseline):")
+    if lowest.empty:
+        lines.append("  none available")
+    else:
+        for rec in lowest.to_dict("records"):
+            lines.append(f"  Week {int(rec['week'])}: {rec['delta_vs_baseline_bps']:.2f} bps")
+    lines.append("")
+
+    # Uncomputable-CI callout (CR-01/D-02): a week where every bootstrap draw
+    # missed it entirely never gets silently read as "not significant".
+    if "insufficient_years" in weeks.columns:
+        insufficient = weeks[weeks["insufficient_years"] == True]  # noqa: E712
+    else:
+        insufficient = weeks.iloc[0:0]
+    if not insufficient.empty:
+        week_list = ", ".join(str(int(w)) for w in sorted(insufficient["week"]))
+        lines.append(
+            f"Uncomputable CI: week(s) {week_list} had zero observations across every "
+            "bootstrap resample, so no confidence interval could be computed for "
+            "them. This is NOT the same as \"tested and found not significant\" -- "
+            "treat these weeks as unknown, not as evidence of no seasonal effect."
+        )
+        lines.append("")
+
+    lines.append(_MULTIPLE_COMPARISON_CAVEAT)
+
+    return "\n".join(lines)
