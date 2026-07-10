@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Weekly Seasonality Analyzer
-current_phase: 7
-current_phase_name: CLI Output & Reporting
+current_phase: 07
+current_phase_name: cli-output-reporting
 status: executing
-stopped_at: Phase 7 context gathered
-last_updated: "2026-07-10T13:45:13.030Z"
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-07-10T14:07:50.161Z"
 last_activity: 2026-07-10
-last_activity_desc: Phase 06 complete, transitioned to Phase 7
+last_activity_desc: Phase 07 execution started
 progress:
   total_phases: 3
   completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
+  total_plans: 8
+  completed_plans: 7
   percent: 67
 ---
 
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-09)
 
 **Core value:** Surface high-quality swing trade setups where the signal has a genuine edge — not just gate compliance.
-**Current focus:** Phase 06 — Seasonality Statistics & Verification
+**Current focus:** Phase 07 — cli-output-reporting
 
 ## Current Position
 
-Phase: 7 — CLI Output & Reporting
-Plan: Not started
+Phase: 07 (cli-output-reporting) — EXECUTING
+Plan: 2 of 2
 Status: Ready to execute
-Last activity: 2026-07-10 — Phase 06 complete, transitioned to Phase 7
+Last activity: 2026-07-10 — Phase 07 execution started
 
 Progress: [██████████] 100%
 
@@ -57,6 +57,7 @@ Progress: [██████████] 100%
 | Phase 06 P01 | 10min | 3 tasks | 2 files |
 | Phase 06 P02 | ~12min | 3 tasks | 2 files |
 | Phase 06 P03 | ~15min | 3 tasks | 4 files |
+| Phase 07 P01 | 5min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -84,9 +85,9 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-07-10T13:16:59.622Z
-Stopped at: Phase 7 context gathered
-Resume file: .planning/phases/07-cli-output-reporting/07-CONTEXT.md
+Last session: 2026-07-10T14:07:50.150Z
+Stopped at: Completed 07-01-PLAN.md
+Resume file: None
 
 ## Decisions
 
@@ -104,3 +105,6 @@ Resume file: .planning/phases/07-cli-output-reporting/07-CONTEXT.md
 - [Phase 06]: significance test uses a zero-variance-across-years panel so the bootstrap CI collapses to a deterministic point -- avoids flaky CI-boundary assertions
 - [Phase 06]: compute_seasonality_stats resolves bootstrap_iters/seed None -> module defaults internally, mirroring load_sector_dataset's years pass-through convention
 - [Phase 06]: _synthetic_panel uses calendar-year bdate_range (not periods=n_years*261) -- verified to reproduce RESEARCH.md's stated week-28 injected CI almost exactly
+- [Phase 07]: Top-5/bottom-5 dedup is priority-based -- highest claims min(5,available) weeks first, lowest gets whatever distinct weeks remain (D-08)
+- [Phase 07]: pad_weeks_table drops insufficient_years/std_bps from its 9-column output -- communicated via N/A cells plus build_summary's callout instead (D-02, D-11)
+- [Phase 07]: pandas bool-dtype columns always yield np.bool_ scalars on element access -- test assertions must use bool(...) is False, not bare is False
