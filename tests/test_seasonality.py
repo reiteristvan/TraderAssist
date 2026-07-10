@@ -2,6 +2,8 @@
 Phase 7 (SEAS-10..13)."""
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -26,6 +28,7 @@ from scanner.seasonality import (
     build_summary,
     _SURVIVORSHIP_WARNING,
     _MULTIPLE_COMPARISON_CAVEAT,
+    write_weeks_csv,
 )
 
 
@@ -1005,3 +1008,63 @@ def test_build_summary_insufficient_years_callout():
     assert "9" in text
     # Never confuse this week with "tested and not significant".
     assert "week 9" in text.lower() or "Week 9" in text
+
+
+# ── Phase 7: write_weeks_csv (SEAS-13, D-11, D-12, D-13) ────────────────────────
+
+def test_write_weeks_csv_creates_missing_parent_dirs(tmp_path):
+    rows = [_week_row(1, 10.0, 5.0, 1.0, 9.0, 9.5, 100, 6, False, False)]
+    result = _make_result(rows)
+    padded = pad_weeks_table(result)
+
+    out_path = tmp_path / "sub" / "dir" / "out.csv"
+    assert not out_path.parent.exists()
+
+    write_weeks_csv(padded, out_path)
+
+    assert out_path.exists()
+
+
+def test_write_weeks_csv_52_rows_9_columns_no_insufficient_years(tmp_path):
+    rows = [_week_row(1, 10.0, 5.0, 1.0, 9.0, 9.5, 100, 6, False, False)]
+    result = _make_result(rows)
+    padded = pad_weeks_table(result)
+
+    out_path = tmp_path / "out.csv"
+    write_weeks_csv(padded, out_path)
+
+    written = pd.read_csv(out_path)
+    assert len(written) == 52
+    assert written.columns.tolist() == _DISPLAY_COLUMNS
+    assert "insufficient_years" not in written.columns
+
+
+def test_write_weeks_csv_content_matches_padded_including_na(tmp_path):
+    rows = [_week_row(1, 10.0, 5.0, 1.0, 9.0, 9.5, 100, 6, False, False)]
+    result = _make_result(rows)
+    padded = pad_weeks_table(result)
+
+    out_path = tmp_path / "out.csv"
+    write_weeks_csv(padded, out_path)
+
+    written = pd.read_csv(out_path, dtype=str)
+    week3_written = written[written["week"] == "3"].iloc[0]
+    assert week3_written["mean_daily_ret_bps"] == "N/A"
+
+    week1_written = written[written["week"] == "1"].iloc[0]
+    assert week1_written["mean_daily_ret_bps"] == "10.00"
+
+
+def test_write_weeks_csv_overwrites_existing_file_silently(tmp_path):
+    rows = [_week_row(1, 10.0, 5.0, 1.0, 9.0, 9.5, 100, 6, False, False)]
+    result = _make_result(rows)
+    padded = pad_weeks_table(result)
+
+    out_path = tmp_path / "out.csv"
+    out_path.write_text("stale content that must be replaced")
+
+    write_weeks_csv(padded, out_path)
+
+    written = pd.read_csv(out_path)
+    assert len(written) == 52
+    assert "stale content" not in out_path.read_text()
