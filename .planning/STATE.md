@@ -6,14 +6,14 @@ current_phase: 06
 current_phase_name: Seasonality Statistics & Verification
 status: executing
 stopped_at: Phase 6 context gathered
-last_updated: "2026-07-10T09:33:51.331Z"
+last_updated: "2026-07-10T09:54:24.969Z"
 last_activity: 2026-07-10
 last_activity_desc: Phase 06 execution started
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
   percent: 33
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-09)
 ## Current Position
 
 Phase: 06 (Seasonality Statistics & Verification) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-07-10 — Phase 06 execution started
 
@@ -55,6 +55,7 @@ Progress: [██████████] 100%
 | Phase 05 P02 | 14min | 3 tasks | 2 files |
 | Phase 05 P03 | 11min | 2 tasks | 2 files |
 | Phase 06 P01 | 10min | 3 tasks | 2 files |
+| Phase 06 P02 | ~12min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -82,7 +83,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-07-10T09:30:49.878Z
+Last session: 2026-07-10T09:51:01.761Z
 Stopped at: Phase 6 context gathered
 Resume file: .planning/phases/06-seasonality-statistics-verification/06-CONTEXT.md
 
@@ -97,3 +98,6 @@ Resume file: .planning/phases/06-seasonality-statistics-verification/06-CONTEXT.
 - [Phase 05]: Skipped-ticker preview capped at 10 pairs to keep stdout readable for the all universe
 - [Phase 06]: Baseline for delta_vs_baseline_bps is the flat pooled mean over every ticker-day row (D-01), not an average of per-week means
 - [Phase 06]: week_observed_stats returns only weeks present in the panel — no padding to 52 rows (Phase 7's concern)
+- [Phase 06]: check_thin_data mirrors resolve_sector's descriptive ValueError-abort pattern -- dataset-wide distinct-year count, no log-and-continue
+- [Phase 06]: bootstrap_week_ci resamples years via precomputed sum/count matrices + default_rng fancy-indexing; baseline recomputed per iteration, never fixed
+- [Phase 06]: significance test uses a zero-variance-across-years panel so the bootstrap CI collapses to a deterministic point -- avoids flaky CI-boundary assertions

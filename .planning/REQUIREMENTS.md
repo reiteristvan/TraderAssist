@@ -17,8 +17,8 @@
 
 - [x] **SEAS-06**: Daily log returns are aggregated by ISO calendar week (1–52), with week 53 merged into week 52, reporting mean/median/std daily return (bps), n_obs, and n_years per week
 - [x] **SEAS-07**: Each week's mean daily return is reported as a delta vs. the full-sample baseline mean daily return
-- [ ] **SEAS-08**: A year-block bootstrap (resample years with replacement, preserving each year's full ticker-day cross-section) produces a 95% CI per week for the delta vs. baseline, controlled by `--bootstrap-iters` and `--seed` for reproducibility
-- [ ] **SEAS-09**: A week is flagged significant only when its 95% CI excludes zero — no tuning to manufacture significance
+- [x] **SEAS-08**: A year-block bootstrap (resample years with replacement, preserving each year's full ticker-day cross-section) produces a 95% CI per week for the delta vs. baseline, controlled by `--bootstrap-iters` and `--seed` for reproducibility
+- [x] **SEAS-09**: A week is flagged significant only when its 95% CI excludes zero — no tuning to manufacture significance
 
 ### Output
 
@@ -54,8 +54,8 @@
 | SEAS-05 | Phase 5 | Complete |
 | SEAS-06 | Phase 6 | Complete |
 | SEAS-07 | Phase 6 | Complete |
-| SEAS-08 | Phase 6 | Pending |
-| SEAS-09 | Phase 6 | Pending |
+| SEAS-08 | Phase 6 | Complete |
+| SEAS-09 | Phase 6 | Complete |
 | SEAS-10 | Phase 7 | Pending |
 | SEAS-11 | Phase 7 | Pending |
 | SEAS-12 | Phase 7 | Pending |
