@@ -46,6 +46,11 @@ Surface high-quality swing trade setups where the signal has a genuine edge — 
 - ✓ Industry momentum as a W/L discriminant dimension (WLA-04) — v1.0
 - ✓ Cell-size gate: suppress buckets < 50 trades (WLA-05) — v1.0
 - ✓ Pre-registered feature list committed before viewing results (WLA-06) — v1.0
+- ✓ Sector-filtered universe resolution via persisted ticker→GICS sector cache (SEAS-01) — v1.1 Phase 5
+- ✓ Clear error + valid-sector listing on unknown sector name, no analysis run (SEAS-02) — v1.1 Phase 5
+- ✓ Daily OHLCV reused from `data_store.get_history`, yfinance only on cache miss (SEAS-03) — v1.1 Phase 5
+- ✓ Sub-2-year-history tickers skipped and logged with count (SEAS-04) — v1.1 Phase 5
+- ✓ Missing/corrupt ticker cache skipped and logged, batch continues (SEAS-05) — v1.1 Phase 5
 
 ### Active
 
@@ -69,10 +74,11 @@ Surface high-quality swing trade setups where the signal has a genuine edge — 
 The v1.0 milestone delivered industry-group momentum context on every signal and a pre-registered winner/loser analysis in backtest reports. The system now has the instrumentation to investigate whether industry momentum and entry-time metrics (RSI, RVOL, pullback depth) discriminate winners from losers.
 
 **Current state:**
-- Scanner: Python scanner with 239 passing tests; schema v9 (12 tables)
+- Scanner: Python scanner with 260 passing tests (up from 239 — Phase 5 added sector_store.py, seasonality.py, seasonality_by_week.py); schema v9 (12 tables, unchanged — Phase 5 is diagnostic-only)
 - Web: Express API (port 3000) + Angular SPA (port 4200); 71 + 37 passing tests
 - Stack: Python/pandas/yfinance + SQLite + Node.js/Express + Angular 17
 - Universe: SP400/500/600 (1,400 tickers); sample.txt for dev testing
+- v1.1 Phase 5 complete (2026-07-09): sector-filtered data pipeline (`seasonality_by_week.py --sector --universe`) validated end-to-end against live yfinance; Phase 6 (bootstrap statistics) is next
 
 **Next investigation:** Run a multi-year pullback backtest with the v1.0 codebase, then read the `wl_analysis` output to see whether industry momentum, RSI at entry, or RVOL actually discriminates winners from losers with sufficient sample size. This is the evidence base for gate promotion decisions in v2.
 
@@ -121,4 +127,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-09 — v1.1 Weekly Seasonality Analyzer milestone started*
+*Last updated: 2026-07-10 — Phase 5 (Sector Resolution & Data Input) complete*
