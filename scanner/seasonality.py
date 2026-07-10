@@ -43,6 +43,10 @@ _MIN_HISTORY_DAYS = 730
 # this gates the bootstrap's statistical validity, not ticker admission (D-05).
 _MIN_BOOTSTRAP_YEARS = 5
 
+# D-03/D-04: defaults live in the engine, keeping the CLI thin.
+_DEFAULT_BOOTSTRAP_ITERS = 1000
+_DEFAULT_SEED = 42
+
 
 @dataclass
 class SectorDataset:
@@ -352,3 +356,59 @@ def bootstrap_week_ci(panel: pd.DataFrame, iters: int, seed: int) -> pd.DataFram
     # observations in any resampled draw should never yield a spurious CI.
     result = result[result["week"].isin(weeks_present)]
     return result.sort_values("week").reset_index(drop=True)
+
+
+def compute_seasonality_stats(
+    dataset: SectorDataset,
+    bootstrap_iters: int | None = None,
+    seed: int | None = None,
+) -> SeasonalityResult:
+    """Assemble the full per-week seasonality result (SEAS-08 orchestrator).
+
+    Composes the four computation stages in sequence, mirroring
+    `load_sector_dataset`'s small-functions + validate-first style:
+    compute_log_returns -> check_thin_data (raises before any bootstrap work
+    on a thin dataset, D-05) -> week_observed_stats -> bootstrap_week_ci. The
+    observed and CI frames are merged on `week` into the full SEAS-10 column
+    set plus `std_bps` (SEAS-06 needs std carried even though SEAS-10's table
+    omits it -- kept here for Phase 7). `bootstrap_iters`/`seed` of None
+    resolve to the D-03/D-04 module defaults. Pure function: no I/O, no
+    wall-clock date.
+    """
+    iters = _DEFAULT_BOOTSTRAP_ITERS if bootstrap_iters is None else bootstrap_iters
+    seed_val = _DEFAULT_SEED if seed is None else seed
+
+    panel = compute_log_returns(dataset.frames)
+    check_thin_data(panel)
+
+    observed = week_observed_stats(panel)
+    ci = bootstrap_week_ci(panel, iters, seed_val)
+
+    weeks = observed.merge(ci, on="week", how="inner")
+    weeks = weeks[
+        [
+            "week",
+            "mean_daily_ret_bps",
+            "delta_vs_baseline_bps",
+            "ci_low_bps",
+            "ci_high_bps",
+            "median_bps",
+            "n_obs",
+            "n_years",
+            "significant",
+            "std_bps",
+        ]
+    ].sort_values("week").reset_index(drop=True)
+
+    baseline_mean_bps = panel["log_ret_bps"].mean()
+    n_years = panel["iso_year"].nunique()
+
+    return SeasonalityResult(
+        sector=dataset.sector,
+        universe=dataset.universe,
+        baseline_mean_bps=baseline_mean_bps,
+        n_years=n_years,
+        bootstrap_iters=iters,
+        seed=seed_val,
+        weeks=weeks,
+    )
