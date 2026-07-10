@@ -1,4 +1,5 @@
-"""Tests for scanner.seasonality — Phase 5 (SEAS-01..05), Phase 6 (SEAS-06..09, 14..15)."""
+"""Tests for scanner.seasonality — Phase 5 (SEAS-01..05), Phase 6 (SEAS-06..09, 14..15),
+Phase 7 (SEAS-10..13)."""
 from __future__ import annotations
 
 import numpy as np
@@ -20,6 +21,8 @@ from scanner.seasonality import (
     validate_history,
     load_sector_dataset,
     week_observed_stats,
+    pad_weeks_table,
+    render_weeks_table,
 )
 
 
@@ -755,3 +758,150 @@ def test_synthetic_noise_flags_0_to_3_of_52():
 
     flagged = int(result.weeks["significant"].sum())
     assert 0 <= flagged <= 3
+
+
+# ── Phase 7: pad_weeks_table / render_weeks_table (SEAS-10, D-01..D-04, D-11, D-12) ──
+
+_DISPLAY_COLUMNS = [
+    "week",
+    "mean_daily_ret_bps",
+    "delta_vs_baseline_bps",
+    "ci_low_bps",
+    "ci_high_bps",
+    "median_bps",
+    "n_obs",
+    "n_years",
+    "significant",
+]
+
+
+def _week_row(
+    week, mean, delta, ci_low, ci_high, median, n_obs, n_years, significant, insufficient
+):
+    """Build one raw Phase-6-shaped weeks row (full 11-column set)."""
+    return {
+        "week": week,
+        "mean_daily_ret_bps": mean,
+        "delta_vs_baseline_bps": delta,
+        "ci_low_bps": ci_low,
+        "ci_high_bps": ci_high,
+        "median_bps": median,
+        "n_obs": n_obs,
+        "n_years": n_years,
+        "significant": significant,
+        "insufficient_years": insufficient,
+        "std_bps": 12.3,
+    }
+
+
+_RAW_WEEK_COLUMNS = [
+    "week",
+    "mean_daily_ret_bps",
+    "delta_vs_baseline_bps",
+    "ci_low_bps",
+    "ci_high_bps",
+    "median_bps",
+    "n_obs",
+    "n_years",
+    "significant",
+    "insufficient_years",
+    "std_bps",
+]
+
+
+def _make_result(weeks_rows: list[dict], baseline_mean_bps: float = 5.0, n_years: int = 6) -> SeasonalityResult:
+    weeks = (
+        pd.DataFrame(weeks_rows)
+        if weeks_rows
+        else pd.DataFrame(columns=_RAW_WEEK_COLUMNS)
+    )
+    return SeasonalityResult(
+        sector="Technology",
+        universe="sp500",
+        baseline_mean_bps=baseline_mean_bps,
+        n_years=n_years,
+        bootstrap_iters=1000,
+        seed=42,
+        weeks=weeks,
+    )
+
+
+def test_pad_weeks_table_returns_52_rows_ascending_with_9_columns():
+    rows = [
+        _week_row(1, 10.0, 5.0, 1.0, 9.0, 9.5, 100, 6, False, False),
+        _week_row(2, -8.0, -13.0, -20.0, -6.0, -7.5, 90, 6, True, False),
+    ]
+    result = _make_result(rows)
+    padded = pad_weeks_table(result)
+
+    assert len(padded) == 52
+    assert padded["week"].tolist() == list(range(1, 53))
+    assert padded.columns.tolist() == _DISPLAY_COLUMNS
+
+
+def test_pad_weeks_table_missing_week_is_na_and_not_significant():
+    rows = [_week_row(1, 10.0, 5.0, 1.0, 9.0, 9.5, 100, 6, False, False)]
+    result = _make_result(rows)
+    padded = pad_weeks_table(result)
+
+    week3 = padded[padded["week"] == 3].iloc[0]
+    for col in [
+        "mean_daily_ret_bps",
+        "delta_vs_baseline_bps",
+        "ci_low_bps",
+        "ci_high_bps",
+        "median_bps",
+        "n_obs",
+        "n_years",
+    ]:
+        assert week3[col] == "N/A"
+    assert week3["significant"] is False
+
+
+def test_pad_weeks_table_insufficient_years_blanks_ci_only():
+    rows = [_week_row(5, 12.345, 6.789, np.nan, np.nan, 11.111, 50, 6, False, True)]
+    result = _make_result(rows)
+    padded = pad_weeks_table(result)
+
+    week5 = padded[padded["week"] == 5].iloc[0]
+    assert week5["ci_low_bps"] == "N/A"
+    assert week5["ci_high_bps"] == "N/A"
+    assert week5["mean_daily_ret_bps"] == "12.35"
+    assert week5["delta_vs_baseline_bps"] == "6.79"
+    assert week5["median_bps"] == "11.11"
+    assert week5["significant"] is False
+
+
+def test_pad_weeks_table_bps_columns_formatted_to_two_decimals():
+    rows = [_week_row(10, -12.4, -12.401, -18.2001, -3.099, -11.0, 200, 8, True, False)]
+    result = _make_result(rows)
+    padded = pad_weeks_table(result)
+
+    week10 = padded[padded["week"] == 10].iloc[0]
+    assert week10["mean_daily_ret_bps"] == "-12.40"
+    assert week10["delta_vs_baseline_bps"] == "-12.40"
+    assert week10["ci_low_bps"] == "-18.20"
+    assert week10["ci_high_bps"] == "-3.10"
+    assert week10["median_bps"] == "-11.00"
+
+
+def test_pad_weeks_table_no_insufficient_years_or_std_bps_columns():
+    rows = [_week_row(1, 10.0, 5.0, 1.0, 9.0, 9.5, 100, 6, False, False)]
+    result = _make_result(rows)
+    padded = pad_weeks_table(result)
+
+    assert "insufficient_years" not in padded.columns
+    assert "std_bps" not in padded.columns
+
+
+def test_render_weeks_table_contains_headers_and_52_rows_and_na_sentinel():
+    rows = [_week_row(1, 10.0, 5.0, 1.0, 9.0, 9.5, 100, 6, False, False)]
+    result = _make_result(rows)
+    padded = pad_weeks_table(result)
+    text = render_weeks_table(padded)
+
+    for header in _DISPLAY_COLUMNS:
+        assert header in text
+    lines = text.strip().splitlines()
+    assert len(lines) == 53  # header + 52 data rows
+    assert "N/A" in text
