@@ -1047,7 +1047,10 @@ def test_write_weeks_csv_content_matches_padded_including_na(tmp_path):
     out_path = tmp_path / "out.csv"
     write_weeks_csv(padded, out_path)
 
-    written = pd.read_csv(out_path, dtype=str)
+    # keep_default_na=False -- otherwise pandas' own read_csv treats the
+    # literal "N/A" cell text as a missing-value sentinel and silently
+    # converts it back to NaN, masking the very content this test verifies.
+    written = pd.read_csv(out_path, dtype=str, keep_default_na=False)
     week3_written = written[written["week"] == "3"].iloc[0]
     assert week3_written["mean_daily_ret_bps"] == "N/A"
 

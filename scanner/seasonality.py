@@ -688,3 +688,26 @@ def build_summary(result: SeasonalityResult) -> str:
     lines.append(_MULTIPLE_COMPARISON_CAVEAT)
 
     return "\n".join(lines)
+
+
+def write_weeks_csv(padded: pd.DataFrame, path: str | Path) -> None:
+    """Write the padded 52-row display table to CSV (D-11, D-12, D-13, SEAS-13).
+
+    Takes the SAME padded DataFrame produced by `pad_weeks_table` -- one
+    shared, already-padded DataFrame feeds both the stdout render and this
+    CSV write, so the two never disagree on row count or content (D-12).
+    Auto-creates the target's parent directory
+    (`Path(path).parent.mkdir(parents=True, exist_ok=True)`, mirroring
+    `scan.py:283`) before writing, and overwrites an existing target
+    silently -- `DataFrame.to_csv`'s default behavior already does this, no
+    extra check needed (D-13). Writes only the 9 SEAS-10 display columns
+    already present on `padded` -- no extra column is added (D-11). This is
+    the module's one deliberate file-I/O helper; the thin CLI (Plan 02) must
+    not inline CSV logic. If the path is genuinely unwritable after mkdir,
+    the underlying OSError propagates uncaught so the CLI's existing
+    try/except ValueError convention is left for genuinely different
+    failures -- this module does not swallow I/O errors here.
+    """
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    padded.to_csv(target, index=False)
