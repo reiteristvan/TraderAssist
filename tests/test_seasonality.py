@@ -488,6 +488,20 @@ def test_bootstrap_ci_iters_at_ceiling_does_not_raise():
     assert not result.empty
 
 
+def test_bootstrap_ci_seed_negative_raises():
+    """WR-01: a negative --seed must fail with this module's descriptive
+    ValueError convention, not numpy's raw "expected non-negative integer"."""
+    panel = _build_bootstrap_panel(n_years=6, n_tickers=2, weeks=[1], seed=1)
+    with pytest.raises(ValueError, match="seed"):
+        bootstrap_week_ci(panel, iters=10, seed=-1)
+
+
+def test_bootstrap_ci_seed_zero_does_not_raise():
+    panel = _build_bootstrap_panel(n_years=6, n_tickers=2, weeks=[1], seed=1)
+    result = bootstrap_week_ci(panel, iters=10, seed=0)
+    assert not result.empty
+
+
 def _build_sparse_week_panel(n_years: int, full_weeks: list[int], sparse_week: int) -> pd.DataFrame:
     """Panel where `sparse_week` is present in the overall panel but only in
     the FIRST distinct year (missing from every other year), while

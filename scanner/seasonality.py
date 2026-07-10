@@ -314,7 +314,10 @@ def bootstrap_week_ci(panel: pd.DataFrame, iters: int, seed: int) -> pd.DataFram
     (SEAS-09), no p-value/test statistic. Uses `numpy.random.default_rng`
     (never the legacy global `np.random.seed`) for reproducibility (D-04).
     Raises ValueError before any array is allocated if `iters` is
-    non-positive or exceeds `_MAX_BOOTSTRAP_ITERS` (WR-02).
+    non-positive or exceeds `_MAX_BOOTSTRAP_ITERS` (WR-02), or if `seed` is
+    negative (WR-01) -- the latter would otherwise only be caught
+    incidentally by `numpy.random.default_rng`'s own check, with a raw numpy
+    message instead of this module's descriptive-ValueError convention.
 
     Returns one row per week actually present in the panel, with columns
     [week, ci_low_bps, ci_high_bps, significant, insufficient_years], sorted
@@ -334,6 +337,8 @@ def bootstrap_week_ci(panel: pd.DataFrame, iters: int, seed: int) -> pd.DataFram
         raise ValueError(
             f"bootstrap-iters must be between 1 and {_MAX_BOOTSTRAP_ITERS}, got {iters}"
         )
+    if seed < 0:
+        raise ValueError(f"seed must be a non-negative integer, got {seed}")
 
     years = np.sort(panel["iso_year"].unique())
     n_years = len(years)
