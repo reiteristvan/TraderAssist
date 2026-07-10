@@ -24,7 +24,7 @@ Full details: [.planning/milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 **Milestone Goal:** Add a standalone CLI tool (`seasonality_by_week.py`) that tests whether stocks in a given GICS sector show statistically significant calendar-week seasonality, using a year-block bootstrap for honest confidence intervals. Diagnostic-only — no wiring into the nightly scan/backtest/UI pipeline, no schema changes.
 
 - [x] **Phase 5: Sector Resolution & Data Input** - Resolve a sector's tickers via a persisted cache and gather validated daily history ready for analysis (completed 2026-07-09)
-- [ ] **Phase 6: Seasonality Statistics & Verification** - Per-week bootstrap statistics with CI-based significance flagging, proven on synthetic data
+- [x] **Phase 6: Seasonality Statistics & Verification** - Per-week bootstrap statistics with CI-based significance flagging, proven on synthetic data (completed 2026-07-10)
 - [ ] **Phase 7: CLI Output & Reporting** - Table, interpretive summary, survivorship warning, and optional CSV export
 
 ## Phase Details
@@ -68,7 +68,7 @@ Full details: [.planning/milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   4. A week is flagged significant only when its 95% CI excludes zero — no parameter tuning to manufacture significance
   5. Synthetic tests pass: an injected -30bps week-28 effect across all years causes week 28 to be flagged significant, and a pure-noise run flags roughly 0–3 of 52 weeks (≈5% false-positive expectation), never more
 
-**Plans**: 2/3 plans executed
+**Plans**: 3/3 plans complete
 
 **Wave 1**
 
@@ -80,7 +80,7 @@ Full details: [.planning/milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 06-03-PLAN.md — compute_seasonality_stats orchestrator + CLI wiring + synthetic verification tests (SEAS-14, SEAS-15)
+- [x] 06-03-PLAN.md — compute_seasonality_stats orchestrator + CLI wiring + synthetic verification tests (SEAS-14, SEAS-15)
 
 ### Phase 7: CLI Output & Reporting
 
@@ -108,5 +108,5 @@ Phases execute in numeric order: 5 → 6 → 7
 | 3. Industry Display in CLI + Web UI | v1.0 | 2/2 | Complete | 2026-07-01 |
 | 4. Winner/Loser Characteristic Analysis | v1.0 | 2/2 | Complete | 2026-07-01 |
 | 5. Sector Resolution & Data Input | v1.1 | 3/3 | Complete    | 2026-07-09 |
-| 6. Seasonality Statistics & Verification | v1.1 | 2/3 | In Progress|  |
+| 6. Seasonality Statistics & Verification | v1.1 | 3/3 | Complete   | 2026-07-10 |
 | 7. CLI Output & Reporting | v1.1 | 0/TBD | Not started | - |

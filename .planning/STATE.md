@@ -4,17 +4,17 @@ milestone: v1.1
 milestone_name: Weekly Seasonality Analyzer
 current_phase: 06
 current_phase_name: Seasonality Statistics & Verification
-status: executing
-stopped_at: Phase 6 context gathered
-last_updated: "2026-07-10T09:54:24.969Z"
+status: verifying
+stopped_at: Completed 06-03-PLAN.md
+last_updated: "2026-07-10T10:32:22.799Z"
 last_activity: 2026-07-10
 last_activity_desc: Phase 06 execution started
 progress:
   total_phases: 3
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 6
-  completed_plans: 5
-  percent: 33
+  completed_plans: 6
+  percent: 67
 ---
 
 # Project State
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-09)
 
 Phase: 06 (Seasonality Statistics & Verification) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-10 — Phase 06 execution started
 
 Progress: [██████████] 100%
@@ -56,6 +56,7 @@ Progress: [██████████] 100%
 | Phase 05 P03 | 11min | 2 tasks | 2 files |
 | Phase 06 P01 | 10min | 3 tasks | 2 files |
 | Phase 06 P02 | ~12min | 3 tasks | 2 files |
+| Phase 06 P03 | ~15min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -83,9 +84,9 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-07-10T09:51:01.761Z
-Stopped at: Phase 6 context gathered
-Resume file: .planning/phases/06-seasonality-statistics-verification/06-CONTEXT.md
+Last session: 2026-07-10T10:32:22.782Z
+Stopped at: Completed 06-03-PLAN.md
+Resume file: None
 
 ## Decisions
 
@@ -101,3 +102,5 @@ Resume file: .planning/phases/06-seasonality-statistics-verification/06-CONTEXT.
 - [Phase 06]: check_thin_data mirrors resolve_sector's descriptive ValueError-abort pattern -- dataset-wide distinct-year count, no log-and-continue
 - [Phase 06]: bootstrap_week_ci resamples years via precomputed sum/count matrices + default_rng fancy-indexing; baseline recomputed per iteration, never fixed
 - [Phase 06]: significance test uses a zero-variance-across-years panel so the bootstrap CI collapses to a deterministic point -- avoids flaky CI-boundary assertions
+- [Phase 06]: compute_seasonality_stats resolves bootstrap_iters/seed None -> module defaults internally, mirroring load_sector_dataset's years pass-through convention
+- [Phase 06]: _synthetic_panel uses calendar-year bdate_range (not periods=n_years*261) -- verified to reproduce RESEARCH.md's stated week-28 injected CI almost exactly

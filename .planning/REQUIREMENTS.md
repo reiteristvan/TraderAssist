@@ -29,8 +29,8 @@
 
 ### Verification
 
-- [ ] **SEAS-14**: A synthetic-data test with an injected -30bps week-28 effect across all years causes the script to flag week 28 as significant
-- [ ] **SEAS-15**: A synthetic-data test on pure noise flags approximately 0–3 of 52 weeks as significant (5% false-positive rate expectation), not more
+- [x] **SEAS-14**: A synthetic-data test with an injected -30bps week-28 effect across all years causes the script to flag week 28 as significant
+- [x] **SEAS-15**: A synthetic-data test on pure noise flags approximately 0–3 of 52 weeks as significant (5% false-positive rate expectation), not more
 
 ## Future Requirements
 
@@ -60,7 +60,7 @@
 | SEAS-11 | Phase 7 | Pending |
 | SEAS-12 | Phase 7 | Pending |
 | SEAS-13 | Phase 7 | Pending |
-| SEAS-14 | Phase 6 | Pending |
-| SEAS-15 | Phase 6 | Pending |
+| SEAS-14 | Phase 6 | Complete |
+| SEAS-15 | Phase 6 | Complete |
 
 **Coverage:** 15/15 v1 requirements mapped ✓
