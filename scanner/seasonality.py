@@ -17,6 +17,7 @@ full-sample baseline (`week_observed_stats`). See
 from __future__ import annotations
 
 import logging
+import warnings
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
@@ -307,7 +308,18 @@ def bootstrap_week_ci(panel: pd.DataFrame, iters: int, seed: int) -> pd.DataFram
     (never the legacy global `np.random.seed`) for reproducibility (D-04).
 
     Returns one row per week actually present in the panel, with columns
-    [week, ci_low_bps, ci_high_bps, significant], sorted ascending by week.
+    [week, ci_low_bps, ci_high_bps, significant, insufficient_years], sorted
+    ascending by week. A week absent from at least one distinct year (CR-01
+    -- realistic for partial-history tickers, staggered admissions, or a
+    small sector) can be selected into a resampled year-block with zero
+    observations for that week; `np.nanpercentile` (not `np.percentile`) is
+    used so a partial miss across draws no longer poisons the whole column
+    into a NaN CI. `insufficient_years` is True only in the (rarer) case
+    where EVERY draw missed the week -- the CI is genuinely uncomputable --
+    and `significant` is then forced False rather than left to a NaN
+    comparison silently reading as "not significant" with no indication
+    anything was wrong. Downstream consumers (Phase 7) can therefore
+    distinguish "not significant" from "cannot compute a CI."
     """
     if iters <= 0:
         raise ValueError(f"bootstrap-iters must be a positive integer, got {iters}")
@@ -336,13 +348,35 @@ def bootstrap_week_ci(panel: pd.DataFrame, iters: int, seed: int) -> pd.DataFram
     resampled_sum = sum_mat[draw].sum(axis=1)
     resampled_cnt = cnt_mat[draw].sum(axis=1)
     with np.errstate(invalid="ignore", divide="ignore"):
-        resampled_week_mean = resampled_sum / resampled_cnt
+        resampled_week_mean = np.where(
+            resampled_cnt > 0,
+            resampled_sum / np.where(resampled_cnt > 0, resampled_cnt, 1),
+            np.nan,
+        )
 
     baseline_mean = resampled_sum.sum(axis=1) / resampled_cnt.sum(axis=1)
     delta = resampled_week_mean - baseline_mean[:, None]
 
-    ci_low, ci_high = np.percentile(delta, [2.5, 97.5], axis=0)
-    significant = (ci_low > 0) | (ci_high < 0)
+    # CR-01: a week absent from at least one distinct year has zero
+    # observations for any draw that doesn't happen to select a year
+    # containing it, so `delta` can be NaN for some (not necessarily all)
+    # draws in that week's column. `np.percentile` returns NaN for the
+    # ENTIRE column the moment even a single draw is NaN, regardless of how
+    # many valid draws remain -- `np.nanpercentile` is required to avoid
+    # that poisoning. `insufficient_years` flags the (rare, but possible)
+    # case where EVERY draw missed the week entirely, i.e. the CI is
+    # genuinely uncomputable, not just noisier than usual; it is deliberately
+    # NOT based on raw "does this week appear in every distinct panel year",
+    # since a partial boundary ISO-year fragment (e.g. a handful of trailing
+    # December days rolling into the next ISO year) legitimately lacks data
+    # for most interior weeks without that being a real support problem.
+    all_nan = np.all(np.isnan(delta), axis=0)
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="All-NaN (slice|axis) encountered")
+        ci_low, ci_high = np.nanpercentile(delta, [2.5, 97.5], axis=0)
+    insufficient_years = all_nan
+    significant = ((ci_low > 0) | (ci_high < 0)) & ~insufficient_years
 
     result = pd.DataFrame(
         {
@@ -350,6 +384,7 @@ def bootstrap_week_ci(panel: pd.DataFrame, iters: int, seed: int) -> pd.DataFram
             "ci_low_bps": ci_low,
             "ci_high_bps": ci_high,
             "significant": significant,
+            "insufficient_years": insufficient_years,
         }
     )
     # Only weeks actually present in the panel are returned — a week with no
@@ -371,9 +406,11 @@ def compute_seasonality_stats(
     on a thin dataset, D-05) -> week_observed_stats -> bootstrap_week_ci. The
     observed and CI frames are merged on `week` into the full SEAS-10 column
     set plus `std_bps` (SEAS-06 needs std carried even though SEAS-10's table
-    omits it -- kept here for Phase 7). `bootstrap_iters`/`seed` of None
-    resolve to the D-03/D-04 module defaults. Pure function: no I/O, no
-    wall-clock date.
+    omits it -- kept here for Phase 7) and `insufficient_years` (CR-01 --
+    True when every bootstrap draw missed the week entirely, meaning its CI
+    is genuinely uncomputable rather than merely "not significant").
+    `bootstrap_iters`/`seed` of None resolve to the D-03/D-04 module
+    defaults. Pure function: no I/O, no wall-clock date.
     """
     iters = _DEFAULT_BOOTSTRAP_ITERS if bootstrap_iters is None else bootstrap_iters
     seed_val = _DEFAULT_SEED if seed is None else seed
@@ -396,6 +433,7 @@ def compute_seasonality_stats(
             "n_obs",
             "n_years",
             "significant",
+            "insufficient_years",
             "std_bps",
         ]
     ].sort_values("week").reset_index(drop=True)

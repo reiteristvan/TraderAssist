@@ -403,7 +403,13 @@ def _build_bootstrap_panel(
 def test_bootstrap_ci_columns_exact():
     panel = _build_bootstrap_panel(n_years=6, n_tickers=5, weeks=[1, 2, 3], seed=1)
     result = bootstrap_week_ci(panel, iters=200, seed=42)
-    assert result.columns.tolist() == ["week", "ci_low_bps", "ci_high_bps", "significant"]
+    assert result.columns.tolist() == [
+        "week",
+        "ci_low_bps",
+        "ci_high_bps",
+        "significant",
+        "insufficient_years",
+    ]
 
 
 def test_bootstrap_ci_reproducible_same_seed():
@@ -466,6 +472,114 @@ def test_bootstrap_ci_iters_negative_raises():
     panel = _build_bootstrap_panel(n_years=6, n_tickers=2, weeks=[1], seed=1)
     with pytest.raises(ValueError):
         bootstrap_week_ci(panel, iters=-5, seed=42)
+
+
+def _build_sparse_week_panel(n_years: int, full_weeks: list[int], sparse_week: int) -> pd.DataFrame:
+    """Panel where `sparse_week` is present in the overall panel but only in
+    the FIRST distinct year (missing from every other year), while
+    `full_weeks` are present in every year -- the CR-01 repro shape."""
+    rows = []
+    base_year = 2000
+    for year_offset in range(n_years):
+        year = base_year + year_offset
+        for week in full_weeks:
+            for _day in range(5):
+                rows.append(
+                    {
+                        "ticker": "AAA",
+                        "iso_year": year,
+                        "iso_week": week,
+                        "log_ret_bps": 10.0 + year_offset,
+                    }
+                )
+    for _day in range(5):
+        rows.append(
+            {
+                "ticker": "AAA",
+                "iso_year": base_year,
+                "iso_week": sparse_week,
+                "log_ret_bps": 10.0,
+            }
+        )
+    panel = pd.DataFrame(rows)
+    panel["date"] = pd.date_range("2000-01-01", periods=len(panel))
+    return panel
+
+
+def test_bootstrap_ci_week_missing_from_one_year_no_longer_silently_nan():
+    """CR-01 regression: a week present in the panel overall but absent from
+    at least one distinct year previously produced a silently-poisoned
+    ci_low_bps=NaN, ci_high_bps=NaN, significant=False -- indistinguishable
+    from a legitimately-computed "not significant" result -- because
+    `np.percentile` (not `np.nanpercentile`) returns NaN for the WHOLE column
+    the instant even one bootstrap draw misses the sparse week. Post-fix,
+    `np.nanpercentile` computes a real CI from the draws that did capture the
+    week, so the corruption is gone (and `insufficient_years` is False since
+    not every draw missed it)."""
+    panel = _build_sparse_week_panel(n_years=5, full_weeks=[6, 7], sparse_week=5)
+
+    result = bootstrap_week_ci(panel, iters=2000, seed=1)
+
+    week5 = result[result["week"] == 5].iloc[0]
+    week6 = result[result["week"] == 6].iloc[0]
+    week7 = result[result["week"] == 7].iloc[0]
+
+    # Pre-fix this was NaN/NaN/False with zero indication anything was wrong.
+    # Post-fix it must be a real, non-NaN CI.
+    assert not np.isnan(week5["ci_low_bps"])
+    assert not np.isnan(week5["ci_high_bps"])
+    assert bool(week5["insufficient_years"]) is False
+
+    # Fully-covered weeks are unaffected: no NaN, ordinary significance rule.
+    assert not np.isnan(week6["ci_low_bps"])
+    assert not np.isnan(week6["ci_high_bps"])
+    assert bool(week6["insufficient_years"]) is False
+    assert not np.isnan(week7["ci_low_bps"])
+    assert not np.isnan(week7["ci_high_bps"])
+    assert bool(week7["insufficient_years"]) is False
+
+
+class _FixedDrawRNG:
+    """Deterministic stand-in for `np.random.default_rng` that always returns
+    the same draw array regardless of low/high/size -- lets a test force an
+    exact bootstrap-draw pattern instead of relying on probabilistic luck to
+    hit the (rare) case where every single draw misses a sparse week."""
+
+    def __init__(self, draw: np.ndarray) -> None:
+        self._draw = draw
+
+    def integers(self, low, high, size=None):  # noqa: ARG002 (fixed stub)
+        return self._draw
+
+
+def test_bootstrap_ci_week_never_drawn_flagged_insufficient_years(monkeypatch):
+    """CR-01 regression (genuine edge case): if EVERY bootstrap draw happens
+    to miss the one year holding a sparse week's only data, the CI is truly
+    uncomputable -- this must be surfaced via the explicit
+    `insufficient_years` indicator with `significant` forced False, never
+    silently returned as ci=NaN/significant=False with no signal at all."""
+    panel = _build_sparse_week_panel(n_years=2, full_weeks=[6], sparse_week=5)
+    # Year index 0 holds week 5's only data; force every one of the 10
+    # iterations' 2 draw-slots to select year index 1 only.
+    fixed_draw = np.ones((10, 2), dtype=int)
+    monkeypatch.setattr(
+        "scanner.seasonality.np.random.default_rng",
+        lambda seed: _FixedDrawRNG(fixed_draw),
+    )
+
+    result = bootstrap_week_ci(panel, iters=10, seed=1)
+
+    week5 = result[result["week"] == 5].iloc[0]
+    week6 = result[result["week"] == 6].iloc[0]
+
+    assert bool(week5["insufficient_years"]) is True
+    assert np.isnan(week5["ci_low_bps"])
+    assert np.isnan(week5["ci_high_bps"])
+    # Forced False, and explicitly flagged via insufficient_years -- never
+    # silently indistinguishable from a legitimately-computed "not significant".
+    assert bool(week5["significant"]) is False
+
+    assert bool(week6["insufficient_years"]) is False
 
 
 # ── compute_seasonality_stats / synthetic verification ────────────────────────
@@ -536,6 +650,7 @@ def test_compute_seasonality_stats_columns_and_defaults():
         "n_obs",
         "n_years",
         "significant",
+        "insufficient_years",
         "std_bps",
     ]
 
