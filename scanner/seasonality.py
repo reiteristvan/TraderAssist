@@ -220,12 +220,21 @@ def compute_log_returns(frames: dict[str, pd.DataFrame]) -> pd.DataFrame:
     and the year label is the ISO year from the SAME .isocalendar() call — never
     df.index.year (RESEARCH.md Pitfall 2). All labels derive from the frame's
     own DatetimeIndex; no wall-clock date is read here (CLAUDE.md convention).
+
+    WR-03: a zero or negative `Close` value produces `-inf`/`NaN` (and, on the
+    following row, `inf`/`NaN`) rather than a plain `NaN` -- an `inf` poisons
+    every downstream sum/mean it touches (in `week_observed_stats` and
+    `bootstrap_week_ci`), not just its own row. `-inf`/`inf` are explicitly
+    replaced with `NaN` before the leading-NaN dropna below, so any bad
+    zero/negative `Close` value is dropped like any other missing row instead
+    of silently corrupting every aggregate downstream.
     """
     columns = ["ticker", "date", "iso_year", "iso_week", "log_ret_bps"]
     parts: list[pd.DataFrame] = []
 
     for ticker, df in frames.items():
         log_ret_bps = np.log(df["Close"]).diff() * 10_000
+        log_ret_bps = log_ret_bps.replace([np.inf, -np.inf], np.nan)
         iso = df.index.isocalendar()
         iso_week = iso["week"].where(iso["week"] != 53, 52)
         iso_year = iso["year"]
@@ -241,7 +250,8 @@ def compute_log_returns(frames: dict[str, pd.DataFrame]) -> pd.DataFrame:
         )
         # Multi-day internal gaps within a ticker's cached history are not
         # specially handled — an accepted simplification (RESEARCH.md Pitfall 5,
-        # no silent smoothing/interpolation).
+        # no silent smoothing/interpolation). Also drops any inf-derived rows
+        # (WR-03, replaced with NaN above).
         parts.append(part.dropna(subset=["log_ret_bps"]))
 
     if not parts:

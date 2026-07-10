@@ -222,6 +222,37 @@ def test_compute_log_returns_pooling_two_tickers_sums_row_counts():
     assert set(panel["ticker"].unique()) == {"AAA", "BBB"}
 
 
+def test_compute_log_returns_zero_close_drops_inf_not_poisons_panel():
+    """WR-03: a zero (or negative) Close value must not leak -inf/inf into
+    log_ret_bps -- those rows must be dropped like any other missing data,
+    not silently poison every downstream sum/mean that touches them."""
+    close = [100.0, 0.0, 102.0, 103.0]
+    idx = pd.date_range("2024-01-02", periods=len(close), freq="B")
+    df = pd.DataFrame({"Close": close}, index=idx)
+
+    panel = compute_log_returns({"AAA": df})
+
+    assert not np.isinf(panel["log_ret_bps"]).any()
+    assert not panel["log_ret_bps"].isna().any()
+    # Row 1 (Close=0.0) produces -inf and row 2's diff vs. 0.0 produces
+    # +inf -- both must be dropped in addition to the leading-NaN row.
+    assert len(panel) == 1
+    assert panel["log_ret_bps"].iloc[0] == pytest.approx(
+        (np.log(103.0) - np.log(102.0)) * 10_000
+    )
+
+
+def test_compute_log_returns_negative_close_drops_inf_not_poisons_panel():
+    close = [100.0, -5.0, 102.0, 103.0]
+    idx = pd.date_range("2024-01-02", periods=len(close), freq="B")
+    df = pd.DataFrame({"Close": close}, index=idx)
+
+    panel = compute_log_returns({"AAA": df})
+
+    assert not np.isinf(panel["log_ret_bps"]).any()
+    assert not panel["log_ret_bps"].isna().any()
+
+
 def test_compute_log_returns_isocalendar_week53_merged_into_52():
     # 2020-12-28 is ISO week 53 of ISO year 2020 (Gregorian year still 2020).
     idx = pd.date_range("2020-12-21", periods=10, freq="B")
