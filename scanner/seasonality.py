@@ -476,3 +476,98 @@ def compute_seasonality_stats(
         seed=seed_val,
         weeks=weeks,
     )
+
+
+# ── Phase 7 (SEAS-10..13) — presentation layer over SeasonalityResult ──────────
+# No new statistics computed below this line: pure formatting/rendering of the
+# Phase 6 `weeks` DataFrame. See .planning/phases/07-cli-output-reporting/07-CONTEXT.md.
+
+# SEAS-10's literal 9-column display order (D-11). `insufficient_years` and
+# `std_bps` are Phase 6 internals, not display columns (D-02, D-11) -- the
+# former is communicated via N/A cells + the build_summary callout instead.
+_DISPLAY_COLUMNS = [
+    "week",
+    "mean_daily_ret_bps",
+    "delta_vs_baseline_bps",
+    "ci_low_bps",
+    "ci_high_bps",
+    "median_bps",
+    "n_obs",
+    "n_years",
+    "significant",
+]
+
+# The five bps columns that render to exactly 2 decimals as strings (D-03).
+_BPS_COLUMNS = [
+    "mean_daily_ret_bps",
+    "delta_vs_baseline_bps",
+    "ci_low_bps",
+    "ci_high_bps",
+    "median_bps",
+]
+
+_NA = "N/A"
+
+
+def pad_weeks_table(result: SeasonalityResult) -> pd.DataFrame:
+    """Pad `result.weeks` to a fixed 52-row SEAS-10 display table (D-01, D-02,
+    D-03, D-11, D-12).
+
+    Reindexes onto the full ISO week range 1..52 (Phase 6's `weeks` only
+    carries weeks actually present in the panel, per `week_observed_stats`'s
+    docstring). A week absent from `result.weeks` gets `N/A` in every numeric
+    column and `significant=False` (D-01). A present week flagged
+    `insufficient_years=True` blanks only `ci_low_bps`/`ci_high_bps` to `N/A`
+    -- the other bps columns (mean/delta/median) still show their real,
+    computed value, and `significant` stays False (already forced by
+    `bootstrap_week_ci`) so a reader never confuses "CI uncomputable" with "
+    tested and not significant" (D-02). This is the single shared,
+    already-padded DataFrame that both `render_weeks_table` (stdout) and
+    `write_weeks_csv` consume, so the two outputs never disagree (D-12).
+    Every cell format is guarded by an explicit `pd.isna` check, never a bare
+    truthy test (07-PATTERNS.md pitfall: `bool(NaN)` is `True` in Python).
+    """
+    full_weeks = pd.DataFrame({"week": np.arange(1, 53)})
+    merged = full_weeks.merge(result.weeks, on="week", how="left")
+
+    rows: list[dict] = []
+    for rec in merged.to_dict("records"):
+        week = int(rec["week"])
+        present = not pd.isna(rec.get("n_obs"))
+        insufficient_val = rec.get("insufficient_years")
+        insufficient = bool(insufficient_val) if not pd.isna(insufficient_val) else False
+
+        row: dict = {"week": week}
+
+        for col in _BPS_COLUMNS:
+            value = rec.get(col)
+            blank_ci = col in ("ci_low_bps", "ci_high_bps") and insufficient
+            if not present or pd.isna(value) or blank_ci:
+                row[col] = _NA
+            else:
+                row[col] = f"{value:.2f}"
+
+        for col in ("n_obs", "n_years"):
+            value = rec.get(col)
+            row[col] = _NA if (not present or pd.isna(value)) else int(value)
+
+        significant_val = rec.get("significant")
+        row["significant"] = (
+            bool(significant_val) if (present and not pd.isna(significant_val)) else False
+        )
+
+        rows.append(row)
+
+    return pd.DataFrame(rows, columns=_DISPLAY_COLUMNS)
+
+
+def render_weeks_table(padded: pd.DataFrame) -> str:
+    """Render the padded 52-row display table as plain text (D-04, SEAS-10).
+
+    Uses `DataFrame.to_string(index=False)` -- no new dependency (`tabulate`
+    explicitly rejected), consistent with `scan.py`'s existing plain-text
+    table print idiom. Column-orders defensively in case a caller passes an
+    already-subsetted or reordered frame.
+    """
+    columns = [c for c in _DISPLAY_COLUMNS if c in padded.columns]
+    return padded[columns].to_string(index=False)

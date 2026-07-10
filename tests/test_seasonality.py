@@ -855,7 +855,7 @@ def test_pad_weeks_table_missing_week_is_na_and_not_significant():
         "n_years",
     ]:
         assert week3[col] == "N/A"
-    assert week3["significant"] is False
+    assert bool(week3["significant"]) is False
 
 
 def test_pad_weeks_table_insufficient_years_blanks_ci_only():
@@ -869,7 +869,7 @@ def test_pad_weeks_table_insufficient_years_blanks_ci_only():
     assert week5["mean_daily_ret_bps"] == "12.35"
     assert week5["delta_vs_baseline_bps"] == "6.79"
     assert week5["median_bps"] == "11.11"
-    assert week5["significant"] is False
+    assert bool(week5["significant"]) is False
 
 
 def test_pad_weeks_table_bps_columns_formatted_to_two_decimals():
