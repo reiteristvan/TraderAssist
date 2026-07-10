@@ -8,6 +8,8 @@ import pytest
 from scanner.core import SECTOR_ETF_MAP
 from scanner.seasonality import (
     SeasonalityResult,
+    bootstrap_week_ci,
+    check_thin_data,
     compute_log_returns,
     resolve_sector,
     resolve_sector_universe,
@@ -313,3 +315,152 @@ def test_week_observed_stats_sorted_ascending_by_week():
     panel = _build_week_panel()
     stats = week_observed_stats(panel)
     assert stats["week"].tolist() == sorted(stats["week"].tolist())
+
+
+# ── check_thin_data ──────────────────────────────────────────────────────────
+
+def _panel_with_years(years: list[int]) -> pd.DataFrame:
+    """Minimal panel with one row per year, columns check_thin_data needs."""
+    return pd.DataFrame(
+        {
+            "ticker": "AAA",
+            "iso_year": years,
+            "iso_week": 1,
+            "log_ret_bps": 0.0,
+        }
+    )
+
+
+def test_check_thin_data_four_years_raises():
+    panel = _panel_with_years([2020, 2021, 2022, 2023])
+    with pytest.raises(ValueError) as excinfo:
+        check_thin_data(panel)
+    message = str(excinfo.value)
+    assert "4" in message
+    assert "5" in message
+
+
+def test_check_thin_data_five_years_returns_none():
+    panel = _panel_with_years([2019, 2020, 2021, 2022, 2023])
+    assert check_thin_data(panel) is None
+
+
+def test_check_thin_data_twenty_years_returns_none():
+    panel = _panel_with_years(list(range(2000, 2020)))
+    assert check_thin_data(panel) is None
+
+
+def test_check_thin_data_custom_min_years_honored():
+    panel = _panel_with_years([2020, 2021, 2022, 2023])
+    assert check_thin_data(panel, min_years=3) is None
+
+
+def test_check_thin_data_dataset_wide_not_per_ticker():
+    # Two tickers, each with only 2 distinct years individually, but 4 distinct
+    # years combined across the whole panel -> still below the 5-year floor.
+    rows = []
+    for ticker, years in (("AAA", [2020, 2021]), ("BBB", [2022, 2023])):
+        for year in years:
+            rows.append(
+                {"ticker": ticker, "iso_year": year, "iso_week": 1, "log_ret_bps": 0.0}
+            )
+    panel = pd.DataFrame(rows)
+    with pytest.raises(ValueError):
+        check_thin_data(panel)
+
+
+# ── bootstrap_week_ci ─────────────────────────────────────────────────────────
+
+def _build_bootstrap_panel(
+    n_years: int, n_tickers: int, weeks: list[int], seed: int, noise_std_bps: float = 50.0
+) -> pd.DataFrame:
+    """Random-noise panel spanning `n_years` distinct ISO years for
+    reproducibility/seed-sensitivity tests (variance across years so the
+    bootstrap CI has nonzero width)."""
+    rng = np.random.default_rng(seed)
+    rows = []
+    base_year = 2000
+    for year_offset in range(n_years):
+        year = base_year + year_offset
+        for ticker_idx in range(n_tickers):
+            for week in weeks:
+                for _day in range(5):  # 5 obs per ticker-week-year
+                    rows.append(
+                        {
+                            "ticker": f"T{ticker_idx}",
+                            "iso_year": year,
+                            "iso_week": week,
+                            "log_ret_bps": rng.normal(0.0, noise_std_bps),
+                        }
+                    )
+    panel = pd.DataFrame(rows)
+    panel["date"] = pd.date_range("2000-01-01", periods=len(panel))
+    return panel
+
+
+def test_bootstrap_ci_columns_exact():
+    panel = _build_bootstrap_panel(n_years=6, n_tickers=5, weeks=[1, 2, 3], seed=1)
+    result = bootstrap_week_ci(panel, iters=200, seed=42)
+    assert result.columns.tolist() == ["week", "ci_low_bps", "ci_high_bps", "significant"]
+
+
+def test_bootstrap_ci_reproducible_same_seed():
+    panel = _build_bootstrap_panel(n_years=6, n_tickers=5, weeks=[1, 2, 3], seed=1)
+    result_a = bootstrap_week_ci(panel, iters=200, seed=42)
+    result_b = bootstrap_week_ci(panel, iters=200, seed=42)
+    pd.testing.assert_frame_equal(result_a, result_b)
+
+
+def test_bootstrap_ci_different_seed_differs():
+    panel = _build_bootstrap_panel(n_years=6, n_tickers=5, weeks=[1, 2, 3], seed=1)
+    result_42 = bootstrap_week_ci(panel, iters=200, seed=42)
+    result_7 = bootstrap_week_ci(panel, iters=200, seed=7)
+    assert not result_42["ci_low_bps"].equals(result_7["ci_low_bps"])
+
+
+def _build_no_variance_panel(n_years: int, week_means: dict[int, float]) -> pd.DataFrame:
+    """Panel where each week's value is IDENTICAL across every year (zero
+    across-year variance), so the year-block bootstrap CI collapses to a
+    single deterministic point per week -- an exact, non-flaky way to test
+    the significance boundary rule."""
+    rows = []
+    base_year = 2000
+    for year_offset in range(n_years):
+        year = base_year + year_offset
+        for week, mean_bps in week_means.items():
+            rows.append(
+                {"ticker": "AAA", "iso_year": year, "iso_week": week, "log_ret_bps": mean_bps}
+            )
+    panel = pd.DataFrame(rows)
+    panel["date"] = pd.date_range("2000-01-01", periods=len(panel))
+    return panel
+
+
+def test_bootstrap_ci_significance_rule():
+    # week 10 strongly negative, week 20 flat (delta exactly 0 by construction),
+    # week 30 strongly positive -- baseline = (-500 + 0 + 500) / 3 == 0.0.
+    panel = _build_no_variance_panel(
+        n_years=6, week_means={10: -500.0, 20: 0.0, 30: 500.0}
+    )
+    result = bootstrap_week_ci(panel, iters=200, seed=42)
+
+    week10 = result[result["week"] == 10].iloc[0]
+    week20 = result[result["week"] == 20].iloc[0]
+
+    assert week10["ci_high_bps"] < 0
+    assert week10["significant"] == True  # noqa: E712 (numpy bool, explicit compare)
+
+    assert week20["ci_low_bps"] <= 0 <= week20["ci_high_bps"]
+    assert week20["significant"] == False  # noqa: E712
+
+
+def test_bootstrap_ci_iters_zero_raises():
+    panel = _build_bootstrap_panel(n_years=6, n_tickers=2, weeks=[1], seed=1)
+    with pytest.raises(ValueError):
+        bootstrap_week_ci(panel, iters=0, seed=42)
+
+
+def test_bootstrap_ci_iters_negative_raises():
+    panel = _build_bootstrap_panel(n_years=6, n_tickers=2, weeks=[1], seed=1)
+    with pytest.raises(ValueError):
+        bootstrap_week_ci(panel, iters=-5, seed=42)
