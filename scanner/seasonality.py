@@ -6,6 +6,13 @@ each ticker has enough cached daily OHLCV history, and hands back a clean
 {ticker: DataFrame} set plus a skip report. Holds all Phase 5 logic; the
 root seasonality_by_week.py CLI (Plan 03) stays thin. See
 .planning/phases/05-sector-resolution-data-input/05-CONTEXT.md.
+
+Phase 6 (SEAS-06..09, 14..15) extends this same module with the statistics
+stage: pooling every admitted ticker's daily log returns into one ISO-week/
+ISO-year-tagged panel (`compute_log_returns`) and computing observed per-week
+mean/median/std/n_obs/n_years plus each week's delta vs. the pooled
+full-sample baseline (`week_observed_stats`). See
+.planning/phases/06-seasonality-statistics-verification/06-CONTEXT.md.
 """
 from __future__ import annotations
 
@@ -14,6 +21,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from scanner.core import SECTOR_ETF_MAP
@@ -38,6 +46,23 @@ class SectorDataset:
     universe: str
     frames: dict[str, pd.DataFrame] = field(default_factory=dict)
     skipped: list[tuple[str, str]] = field(default_factory=list)
+
+
+@dataclass
+class SeasonalityResult:
+    """Final Phase 6 output shape (populated by Plan 03's orchestrator).
+
+    `weeks` carries the per-week DataFrame (week_observed_stats plus
+    bootstrap CI/significance columns added by later plans).
+    """
+
+    sector: str
+    universe: str
+    baseline_mean_bps: float
+    n_years: int
+    bootstrap_iters: int
+    seed: int
+    weeks: pd.DataFrame = field(default_factory=pd.DataFrame)
 
 
 def valid_sectors() -> list[str]:
@@ -168,3 +193,42 @@ def load_sector_dataset(
         frames=frames,
         skipped=skipped_sector + skipped_hist,
     )
+
+
+def compute_log_returns(frames: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """Pool every ticker's daily log return into one ISO-tagged panel (SEAS-06).
+
+    Returns a long panel with columns [ticker, date, iso_year, iso_week,
+    log_ret_bps]. For each ticker, log_ret_bps = np.log(Close).diff() * 10_000;
+    the leading NaN row (one per ticker) is dropped. Week 53 is remapped to 52
+    and the year label is the ISO year from the SAME .isocalendar() call — never
+    df.index.year (RESEARCH.md Pitfall 2). All labels derive from the frame's
+    own DatetimeIndex; no wall-clock date is read here (CLAUDE.md convention).
+    """
+    columns = ["ticker", "date", "iso_year", "iso_week", "log_ret_bps"]
+    parts: list[pd.DataFrame] = []
+
+    for ticker, df in frames.items():
+        log_ret_bps = np.log(df["Close"]).diff() * 10_000
+        iso = df.index.isocalendar()
+        iso_week = iso["week"].where(iso["week"] != 53, 52)
+        iso_year = iso["year"]
+
+        part = pd.DataFrame(
+            {
+                "ticker": ticker,
+                "date": df.index,
+                "iso_year": iso_year.to_numpy(),
+                "iso_week": iso_week.to_numpy(),
+                "log_ret_bps": log_ret_bps.to_numpy(),
+            }
+        )
+        # Multi-day internal gaps within a ticker's cached history are not
+        # specially handled — an accepted simplification (RESEARCH.md Pitfall 5,
+        # no silent smoothing/interpolation).
+        parts.append(part.dropna(subset=["log_ret_bps"]))
+
+    if not parts:
+        return pd.DataFrame(columns=columns)
+
+    return pd.concat(parts, ignore_index=True)[columns]
