@@ -232,3 +232,37 @@ def compute_log_returns(frames: dict[str, pd.DataFrame]) -> pd.DataFrame:
         return pd.DataFrame(columns=columns)
 
     return pd.concat(parts, ignore_index=True)[columns]
+
+
+def week_observed_stats(panel: pd.DataFrame) -> pd.DataFrame:
+    """Compute pooled per-week mean/median/std/n_obs/n_years (SEAS-06) plus
+    each week's delta vs. the pooled full-sample baseline mean (SEAS-07).
+
+    The baseline is the flat mean over EVERY ticker-day row in `panel` (D-01)
+    — not an average of per-week means. Only weeks actually present in the
+    panel are returned; padding to a fixed 52 rows is Phase 7's concern.
+    """
+    baseline = panel["log_ret_bps"].mean()
+
+    grouped = panel.groupby("iso_week")["log_ret_bps"].agg(
+        mean_daily_ret_bps="mean",
+        median_bps="median",
+        std_bps="std",
+        n_obs="count",
+    )
+    grouped["n_years"] = panel.groupby("iso_week")["iso_year"].nunique()
+    grouped["delta_vs_baseline_bps"] = grouped["mean_daily_ret_bps"] - baseline
+
+    result = grouped.reset_index().rename(columns={"iso_week": "week"})
+    result = result.sort_values("week").reset_index(drop=True)
+    return result[
+        [
+            "week",
+            "mean_daily_ret_bps",
+            "median_bps",
+            "std_bps",
+            "n_obs",
+            "n_years",
+            "delta_vs_baseline_bps",
+        ]
+    ]
