@@ -289,3 +289,66 @@ def check_thin_data(panel: pd.DataFrame, min_years: int = _MIN_BOOTSTRAP_YEARS) 
             f"need >= {min_years}. A bootstrap on fewer resampling blocks is noise "
             "dressed up as statistics."
         )
+
+
+def bootstrap_week_ci(panel: pd.DataFrame, iters: int, seed: int) -> pd.DataFrame:
+    """Year-block percentile bootstrap 95% CI per week for delta-vs-baseline (SEAS-08/09).
+
+    Resamples whole ISO years with replacement (D-02): each iteration draws
+    `n_years` year-indices and moves every drawn year's full ticker-day
+    cross-section together as one block. The baseline is recomputed from the
+    SAME resampled draw each iteration (RESEARCH.md Pitfall 4) — never held
+    fixed at the observed value. Significance is a pure CI-excludes-zero rule
+    (SEAS-09), no p-value/test statistic. Uses `numpy.random.default_rng`
+    (never the legacy global `np.random.seed`) for reproducibility (D-04).
+
+    Returns one row per week actually present in the panel, with columns
+    [week, ci_low_bps, ci_high_bps, significant], sorted ascending by week.
+    """
+    if iters <= 0:
+        raise ValueError(f"bootstrap-iters must be a positive integer, got {iters}")
+
+    years = np.sort(panel["iso_year"].unique())
+    n_years = len(years)
+    year_to_idx = {year: idx for idx, year in enumerate(years)}
+    year_idx = panel["iso_year"].map(year_to_idx)
+
+    weeks_present = np.sort(panel["iso_week"].unique())
+
+    sum_mat = np.zeros((n_years, 52))
+    cnt_mat = np.zeros((n_years, 52))
+    grouped = (
+        panel.assign(_year_idx=year_idx)
+        .groupby(["_year_idx", "iso_week"])["log_ret_bps"]
+        .agg(["sum", "count"])
+    )
+    for (yi, wk), row in grouped.iterrows():
+        sum_mat[yi, wk - 1] = row["sum"]
+        cnt_mat[yi, wk - 1] = row["count"]
+
+    rng = np.random.default_rng(seed)
+    draw = rng.integers(0, n_years, size=(iters, n_years))
+
+    resampled_sum = sum_mat[draw].sum(axis=1)
+    resampled_cnt = cnt_mat[draw].sum(axis=1)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        resampled_week_mean = resampled_sum / resampled_cnt
+
+    baseline_mean = resampled_sum.sum(axis=1) / resampled_cnt.sum(axis=1)
+    delta = resampled_week_mean - baseline_mean[:, None]
+
+    ci_low, ci_high = np.percentile(delta, [2.5, 97.5], axis=0)
+    significant = (ci_low > 0) | (ci_high < 0)
+
+    result = pd.DataFrame(
+        {
+            "week": np.arange(1, 53),
+            "ci_low_bps": ci_low,
+            "ci_high_bps": ci_high,
+            "significant": significant,
+        }
+    )
+    # Only weeks actually present in the panel are returned — a week with no
+    # observations in any resampled draw should never yield a spurious CI.
+    result = result[result["week"].isin(weeks_present)]
+    return result.sort_values("week").reset_index(drop=True)
