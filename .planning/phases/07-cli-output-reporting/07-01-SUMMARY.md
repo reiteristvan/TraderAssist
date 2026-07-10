@@ -182,3 +182,7 @@ All four Phase 7 functions and the two static constants exist in `scanner/season
 ---
 *Phase: 07-cli-output-reporting*
 *Completed: 2026-07-10*
+
+## Self-Check: PASSED
+
+All 7 commits (e986896, c121aef, 112abc7, e9b363c, e7f4dd7, fc66b5c, 085f930) verified present in git log. `scanner/seasonality.py` and `tests/test_seasonality.py` confirmed on disk.
