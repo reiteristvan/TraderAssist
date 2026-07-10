@@ -39,6 +39,10 @@ _UNIVERSE_PATHS = {
 
 _MIN_HISTORY_DAYS = 730
 
+# Separate, higher bar than the 2-year admission floor above (_MIN_HISTORY_DAYS):
+# this gates the bootstrap's statistical validity, not ticker admission (D-05).
+_MIN_BOOTSTRAP_YEARS = 5
+
 
 @dataclass
 class SectorDataset:
@@ -266,3 +270,22 @@ def week_observed_stats(panel: pd.DataFrame) -> pd.DataFrame:
             "delta_vs_baseline_bps",
         ]
     ]
+
+
+def check_thin_data(panel: pd.DataFrame, min_years: int = _MIN_BOOTSTRAP_YEARS) -> None:
+    """Abort before any bootstrap work if too few distinct years exist (D-05, SEAS-08).
+
+    Counts distinct `iso_year` values across the WHOLE panel (all tickers
+    combined), not per ticker. This is the "abort the whole run" tier — it
+    does NOT log-and-continue or append to a skip list, unlike the per-ticker
+    tolerances in `validate_history`/`resolve_sector_universe` (different
+    philosophy, per 06-CONTEXT.md). Mirrors `resolve_sector`'s descriptive
+    ValueError-with-message abort pattern.
+    """
+    n_distinct = panel["iso_year"].nunique()
+    if n_distinct < min_years:
+        raise ValueError(
+            f"Too few distinct years for an honest bootstrap: found {n_distinct}, "
+            f"need >= {min_years}. A bootstrap on fewer resampling blocks is noise "
+            "dressed up as statistics."
+        )
