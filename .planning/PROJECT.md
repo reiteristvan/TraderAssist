@@ -51,6 +51,12 @@ Surface high-quality swing trade setups where the signal has a genuine edge — 
 - ✓ Daily OHLCV reused from `data_store.get_history`, yfinance only on cache miss (SEAS-03) — v1.1 Phase 5
 - ✓ Sub-2-year-history tickers skipped and logged with count (SEAS-04) — v1.1 Phase 5
 - ✓ Missing/corrupt ticker cache skipped and logged, batch continues (SEAS-05) — v1.1 Phase 5
+- ✓ Per-week mean/median/std daily log return in bps, n_obs, n_years for ISO weeks 1–52 (week 53 merged) (SEAS-06) — v1.1 Phase 6
+- ✓ Each week's mean return expressed as delta vs. full-sample baseline (SEAS-07) — v1.1 Phase 6
+- ✓ Year-block bootstrap 95% CI per week, reproducible via `--bootstrap-iters`/`--seed` (SEAS-08) — v1.1 Phase 6
+- ✓ Significance flag set only when 95% CI excludes zero, no tuning (SEAS-09) — v1.1 Phase 6
+- ✓ Synthetic test proves detection of an injected -30bps week-28 effect (SEAS-14) — v1.1 Phase 6
+- ✓ Synthetic pure-noise run stays within ~0-3/52 false-positive band (SEAS-15) — v1.1 Phase 6
 
 ### Active
 
@@ -74,11 +80,11 @@ Surface high-quality swing trade setups where the signal has a genuine edge — 
 The v1.0 milestone delivered industry-group momentum context on every signal and a pre-registered winner/loser analysis in backtest reports. The system now has the instrumentation to investigate whether industry momentum and entry-time metrics (RSI, RVOL, pullback depth) discriminate winners from losers.
 
 **Current state:**
-- Scanner: Python scanner with 260 passing tests (up from 239 — Phase 5 added sector_store.py, seasonality.py, seasonality_by_week.py); schema v9 (12 tables, unchanged — Phase 5 is diagnostic-only)
+- Scanner: Python scanner with 295 passing tests (up from 260 — Phase 6 added bootstrap CI/significance stats to `scanner/seasonality.py` and wired `--bootstrap-iters`/`--seed` live in `seasonality_by_week.py`); schema v9 (12 tables, unchanged — Phase 6 is diagnostic-only)
 - Web: Express API (port 3000) + Angular SPA (port 4200); 71 + 37 passing tests
 - Stack: Python/pandas/yfinance + SQLite + Node.js/Express + Angular 17
 - Universe: SP400/500/600 (1,400 tickers); sample.txt for dev testing
-- v1.1 Phase 5 complete (2026-07-09): sector-filtered data pipeline (`seasonality_by_week.py --sector --universe`) validated end-to-end against live yfinance; Phase 6 (bootstrap statistics) is next
+- v1.1 Phase 6 complete (2026-07-10): honest per-week seasonality stats with year-block bootstrap CIs, significance flagging, and synthetic true-positive/false-positive verification; a code-review BLOCKER (silent NaN CI on weeks missing from a bootstrap year) was found and fixed before verification passed. Phase 7 (CLI output & reporting) is next.
 
 **Next investigation:** Run a multi-year pullback backtest with the v1.0 codebase, then read the `wl_analysis` output to see whether industry momentum, RSI at entry, or RVOL actually discriminates winners from losers with sufficient sample size. This is the evidence base for gate promotion decisions in v2.
 
@@ -88,6 +94,7 @@ Key lessons from prior milestones:
 - Empirical validation before any gate change is mandatory
 - `bool(NaN)` evaluates to `True` in Python — guard pre-warm-up MACD with `pd.isna()` checks
 - Signal key collision risk in dual-strategy backtests: use 3-tuple `(date, ticker, strategy)` for dict keys
+- `np.percentile` (not `np.nanpercentile`) on bootstrap draws silently returns NaN + a false "not significant" for any week absent from even one resampled year — no exception, no warning. Caught by code review, not by the original test suite, since none of the fixtures constructed a week missing from a year. Any future per-week/per-group bootstrap in this codebase should default to `nanpercentile` plus an explicit insufficient-data flag, not bare `percentile`.
 
 ## Constraints
 
@@ -127,4 +134,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-10 — Phase 5 (Sector Resolution & Data Input) complete*
+*Last updated: 2026-07-10 — Phase 6 (Seasonality Statistics & Verification) complete*
