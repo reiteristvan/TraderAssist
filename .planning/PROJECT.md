@@ -2,22 +2,19 @@
 
 ## What This Is
 
-TraderAssist is a personal swing trading scanner that identifies pullback and breakout setups across S&P 400/500/600 universes. It runs nightly scans, generates signals with gate-based filtering, backtests strategies over historical data, and displays results through a web UI. Every signal now carries industry-group momentum context and backtest reports include a pre-registered winner/loser characteristic analysis. The owner uses it to surface actionable trade candidates with defined risk parameters and to systematically investigate whether entry-time context (industry momentum, entry RSI, RVOL) discriminates winners from losers.
+TraderAssist is a personal swing trading scanner that identifies pullback and breakout setups across S&P 400/500/600 universes. It runs nightly scans, generates signals with gate-based filtering, backtests strategies over historical data, and displays results through a web UI. Every signal now carries industry-group momentum context and backtest reports include a pre-registered winner/loser characteristic analysis. A standalone diagnostic CLI (`seasonality_by_week.py`) tests whether stocks in a given sector show statistically significant calendar-week seasonality, using a year-block bootstrap for honest confidence intervals. The owner uses it to surface actionable trade candidates with defined risk parameters and to systematically investigate whether entry-time context (industry momentum, entry RSI, RVOL, calendar-week seasonality) discriminates winners from losers.
 
 ## Core Value
 
 Surface high-quality swing trade setups where the signal has a genuine edge — not just gate compliance.
 
-## Current Milestone: v1.1 Weekly Seasonality Analyzer
+## Current State
 
-**Goal:** Add a standalone CLI tool that tests whether stocks in a given sector show statistically significant calendar-week seasonality, using a year-block bootstrap for honest confidence intervals (not naive daily resampling, which understates uncertainty given cross-sectional correlation within a sector).
+**Shipped:** v1.1 Weekly Seasonality Analyzer (2026-07-12)
 
-**Target features:**
-- `seasonality_by_week.py` CLI at repo root — `--sector`, `--years`, `--universe` (required), `--output`, `--bootstrap-iters`, `--seed`
-- New `scanner/sector_store.py` — ticker→GICS sector cache (yfinance `info['sector']`, Parquet-cached like `earnings_store.py`), reused across runs
-- Reuses `scanner/data_store.py get_history()` for cached daily OHLCV; yfinance fallback only on cache miss
-- ISO-week aggregation (week 53 merged into 52) with year-block bootstrap CI and significance flagging (CI excludes zero)
-- Synthetic-data test suite proving true-positive detection and bounded false-positive rate
+v1.1 delivered `seasonality_by_week.py`, a standalone diagnostic CLI that tests whether stocks in a given GICS sector show statistically significant calendar-week seasonality using a year-block bootstrap (honest CI given cross-sectional correlation within a sector, unlike naive daily resampling). Diagnostic-only by design — no wiring into the nightly scan/backtest pipeline, no schema changes.
+
+**Next milestone:** Not yet defined — run `/gsd-new-milestone` to scope v1.2.
 
 ## Requirements
 
@@ -57,6 +54,10 @@ Surface high-quality swing trade setups where the signal has a genuine edge — 
 - ✓ Significance flag set only when 95% CI excludes zero, no tuning (SEAS-09) — v1.1 Phase 6
 - ✓ Synthetic test proves detection of an injected -30bps week-28 effect (SEAS-14) — v1.1 Phase 6
 - ✓ Synthetic pure-noise run stays within ~0-3/52 false-positive band (SEAS-15) — v1.1 Phase 6
+- ✓ CLI prints 52-row per-week table (week, mean/median/delta/CI/n_obs/n_years/significant) (SEAS-10) — v1.1 Phase 7
+- ✓ CLI prints interpretive summary — baseline, significant weeks, top-5/bottom-5, multiple-comparison caveat (SEAS-11) — v1.1 Phase 7
+- ✓ One-line survivorship-bias warning in output header (SEAS-12) — v1.1 Phase 7
+- ✓ `--output` writes CSV while stdout output always happens regardless (SEAS-13) — v1.1 Phase 7
 
 ### Active
 
@@ -75,18 +76,18 @@ Surface high-quality swing trade setups where the signal has a genuine edge — 
 
 ## Context
 
-**Shipped:** v1.0 Signal Quality (2026-07-02)
+**Shipped:** v1.0 Signal Quality (2026-07-02), v1.1 Weekly Seasonality Analyzer (2026-07-12)
 
-The v1.0 milestone delivered industry-group momentum context on every signal and a pre-registered winner/loser analysis in backtest reports. The system now has the instrumentation to investigate whether industry momentum and entry-time metrics (RSI, RVOL, pullback depth) discriminate winners from losers.
+The v1.0 milestone delivered industry-group momentum context on every signal and a pre-registered winner/loser analysis in backtest reports. v1.1 added a standalone seasonality diagnostic on top of that foundation — the system now has instrumentation to investigate industry momentum, entry-time metrics, and calendar-week seasonality as potential winner/loser discriminants.
 
 **Current state:**
-- Scanner: Python scanner with 295 passing tests (up from 260 — Phase 6 added bootstrap CI/significance stats to `scanner/seasonality.py` and wired `--bootstrap-iters`/`--seed` live in `seasonality_by_week.py`); schema v9 (12 tables, unchanged — Phase 6 is diagnostic-only)
-- Web: Express API (port 3000) + Angular SPA (port 4200); 71 + 37 passing tests
+- Scanner: Python scanner with 320 passing tests (up from 295 at v1.1 start — Phase 7 added CLI output/CSV-export tests plus a subprocess-based regression test for a Windows stream-encoding bug); schema v9 (12 tables, unchanged — the seasonality tool is diagnostic-only, no schema bump)
+- Web: Express API (port 3000) + Angular SPA (port 4200); 71 + 37 passing tests (unaffected by v1.1 — the seasonality tool is CLI-only by design)
 - Stack: Python/pandas/yfinance + SQLite + Node.js/Express + Angular 17
 - Universe: SP400/500/600 (1,400 tickers); sample.txt for dev testing
-- v1.1 Phase 6 complete (2026-07-10): honest per-week seasonality stats with year-block bootstrap CIs, significance flagging, and synthetic true-positive/false-positive verification; a code-review BLOCKER (silent NaN CI on weeks missing from a bootstrap year) was found and fixed before verification passed. Phase 7 (CLI output & reporting) is next.
+- New this milestone: `seasonality_by_week.py` (CLI entry point), `scanner/sector_store.py` (ticker→GICS-sector Parquet cache), `scanner/seasonality.py` (log-return panel, year-block bootstrap CI, significance flagging, table/summary/CSV rendering)
 
-**Next investigation:** Run a multi-year pullback backtest with the v1.0 codebase, then read the `wl_analysis` output to see whether industry momentum, RSI at entry, or RVOL actually discriminates winners from losers with sufficient sample size. This is the evidence base for gate promotion decisions in v2.
+**Next investigation:** Run a multi-year pullback backtest with the v1.0 codebase, then read the `wl_analysis` output to see whether industry momentum, RSI at entry, or RVOL actually discriminates winners from losers with sufficient sample size. This is the evidence base for gate promotion decisions in v2. Separately, `seasonality_by_week.py` is now available to check whether any given sector shows real (bootstrap-significant, not cherry-picked) calendar-week seasonality worth factoring into entry timing.
 
 Key lessons from prior milestones:
 - ADX gate removal degraded performance (reverted)
@@ -95,6 +96,7 @@ Key lessons from prior milestones:
 - `bool(NaN)` evaluates to `True` in Python — guard pre-warm-up MACD with `pd.isna()` checks
 - Signal key collision risk in dual-strategy backtests: use 3-tuple `(date, ticker, strategy)` for dict keys
 - `np.percentile` (not `np.nanpercentile`) on bootstrap draws silently returns NaN + a false "not significant" for any week absent from even one resampled year — no exception, no warning. Caught by code review, not by the original test suite, since none of the fixtures constructed a week missing from a year. Any future per-week/per-group bootstrap in this codebase should default to `nanpercentile` plus an explicit insufficient-data flag, not bare `percentile`.
+- Non-ASCII characters (e.g. `→`) in `print()` confirmation lines crash with `UnicodeEncodeError` on Windows, where the default console/stream encoding is `cp1252`, not UTF-8 — pytest's `capsys` never catches this because it captures via an in-memory buffer that bypasses real stream encoding. Found in `seasonality_by_week.py` and an identical pre-existing occurrence in `scan.py`; fixed by using ASCII-only output text. Any new CLI confirmation/status print in this codebase should stick to ASCII, and a genuine regression test for stream-encoding bugs needs `subprocess.run(..., env={"PYTHONIOENCODING": "cp1252"})`, not `capsys`.
 
 ## Constraints
 
@@ -113,6 +115,12 @@ Key lessons from prior milestones:
 | `WL_FEATURES` pre-registration before any backtest viewed | Anti-cherry-picking: feature list must not be influenced by observed results | ✓ Enforced — constant committed before results evaluated; pattern established for v2 |
 | Schema v9 (not v7 as milestone originally named) | v7/v8 already consumed by prior epics; v9 is the correct next increment | ✓ Applied — schema_version = 9 in production DB |
 | 3-tuple signal key in W/L analysis | Prevents collision in dual-strategy runs where same ticker appears in both strategies | ✓ Correct — found and fixed in code review (CR-02) |
+| Year-block bootstrap (not naive daily resampling) for seasonality CIs | Naive resampling understates uncertainty given cross-sectional correlation within a sector — all tickers move together on any given day | ✓ Delivered — `bootstrap_week_ci` resamples whole years, baseline recomputed per iteration |
+| GICS sector granularity only for seasonality (not sub-sector/industry) | Scoped explicitly to keep v1.1 diagnostic-only and small; industry-level would need the same ETF-proxy design work as v1.0's industry momentum feature | ✓ Applied — out of scope, documented in REQUIREMENTS.md |
+| Seasonality tool is diagnostic-only — no scan/backtest/UI wiring, no schema bump | Evidence-first discipline (same as industry-momentum display-only rollout in v1.0) — promote to a gate only after backtest evidence | ✓ Applied — standalone CLI + CSV, zero changes to `store_db.py`/schema/web layer |
+| Survivorship bias documented via warning, not corrected | Current-constituents-only universe; correcting would require delisted-ticker history not available via yfinance | ✓ Applied — one-line warning printed in every CLI run's header |
+
+
 
 ---
 
@@ -134,4 +142,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-10 — Phase 6 (Seasonality Statistics & Verification) complete*
+*Last updated: 2026-07-12 — v1.1 Weekly Seasonality Analyzer shipped*

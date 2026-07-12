@@ -1,5 +1,31 @@
 # Milestones — TraderAssist
 
+## v1.1 Weekly Seasonality Analyzer (Shipped: 2026-07-12)
+
+**Phases completed:** 3 phases, 8 plans, 21 tasks (+1 post-verification quick task, 2 tasks)
+**Timeline:** 2026-07-09 → 2026-07-12 (phase execution); v1.0 tag → v1.1 close: 74 commits
+**Tests:** 320 pytest passing (up from 295 at v1.0 close)
+
+**Key accomplishments:**
+
+- scanner/sector_store.py — Parquet-backed ticker-to-GICS-sector cache mirroring earnings_store.py's per-ticker fetch/cache/sentinel pattern
+- scanner/seasonality.py — sector-name validation, universe→ticker resolution, sector filtering via sector_store, and ≥2yr history validation reusing data_store.get_history, all with skip-not-fail semantics
+- seasonality_by_week.py — a thin argparse CLI mirroring scan.py's delegate-and-print convention, wrapping scanner.seasonality.load_sector_dataset and printing a Phase-5 data-readiness summary; unknown sectors exit 2 with a valid-names listing before any analysis runs
+- Pooled ISO-week log-return panel builder plus per-week mean/median/std/n_obs/n_years and baseline delta, using `.isocalendar()` for correct year-boundary and week-53 handling
+- Vectorized numpy year-block percentile bootstrap producing a reproducible 95% CI per week (baseline resampled per iteration) plus the D-05 thin-data abort guard, both proven by deterministic unit tests
+- compute_seasonality_stats composes the full Phase 6 pipeline into one SeasonalityResult, `--bootstrap-iters`/`--seed` are now live in the CLI, and a 20-year/15-ticker synthetic panel proves both injected-effect detection (SEAS-14) and a bounded false-positive rate (SEAS-15)
+- Added pad_weeks_table, render_weeks_table, build_summary, and write_weeks_csv to scanner/seasonality.py — the padded-52-week table, interpretive summary text, and CSV export that turn Phase 6's raw SeasonalityResult into readable output.
+- Wired Plan 01's pad_weeks_table/render_weeks_table/build_summary/write_weeks_csv into seasonality_by_week.py::main — the CLI now prints the survivorship warning, the padded 52-row table, and the interpretive summary on every run, and writes the same padded table to CSV when --output is given.
+- Post-verification fix: a `UnicodeEncodeError` crash on Windows cp1252 streams (unencodable arrow character in the `--output` confirmation print) was found by Phase 7 goal-backward verification and fixed via quick task 260712-h7l, with a new subprocess-based regression test closing the `capsys`-blind coverage gap that let it ship unnoticed.
+
+### Archive
+
+- `.planning/milestones/v1.1-ROADMAP.md` — full phase details and decisions
+- `.planning/milestones/v1.1-REQUIREMENTS.md` — all 15 requirements with traceability
+- `.planning/milestones/v1.1-MILESTONE-AUDIT.md` — cross-phase requirements/integration audit (15/15 satisfied, 0 blockers)
+
+---
+
 ## v1.0 Signal Quality
 
 **Shipped:** 2026-07-02
@@ -27,4 +53,4 @@
 - `.planning/milestones/v1.0-REQUIREMENTS.md` — all 13 requirements with traceability
 
 ---
-*Next: `/gsd-new-milestone` to define v2.0 scope*
+*Next: `/gsd-new-milestone` to define the next milestone's scope*
