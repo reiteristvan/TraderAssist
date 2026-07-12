@@ -2,6 +2,11 @@
 SEAS-10..13)."""
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
+from pathlib import Path
+
 import pandas as pd
 
 import seasonality_by_week as cli
@@ -213,7 +218,7 @@ def test_main_output_writes_csv_and_still_prints_stdout(monkeypatch, capsys, tmp
     assert out_path.exists()
     assert "week" in captured.out
     assert "none — no week deviates significantly from baseline" in captured.out
-    assert f"Saved → {out_path}" in captured.out
+    assert f"Saved -> {out_path}" in captured.out
 
     written = pd.read_csv(out_path, keep_default_na=False)
     assert len(written) == 52
@@ -234,6 +239,37 @@ def test_main_without_output_writes_no_file(monkeypatch, capsys, tmp_path):
     assert result == 0
     assert "week" in captured.out
     assert list(tmp_path.iterdir()) == []
+
+
+def test_main_output_survives_cp1252_stream_encoding(tmp_path):
+    """Regression test for the crash documented in 07-VERIFICATION.md: the
+    --output confirmation print must survive a real, non-capsys stream bound
+    to cp1252. capsys captures via an in-memory buffer that bypasses real
+    stream encoding entirely, which is exactly why this bug shipped unnoticed
+    through 319 passing tests -- this test exercises the CLI in a subprocess
+    with PYTHONIOENCODING forced to cp1252 instead."""
+    out_path = tmp_path / "out.csv"
+    helper = Path(__file__).resolve().parent / "_regression_cp1252_helper.py"
+    repo_root = Path(__file__).resolve().parent.parent
+
+    env = dict(os.environ)
+    env["PYTHONIOENCODING"] = "cp1252"
+    env.pop("PYTHONUTF8", None)
+
+    result = subprocess.run(
+        [sys.executable, str(helper), str(out_path)],
+        cwd=str(repo_root),
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Traceback" not in result.stderr
+    assert "UnicodeEncodeError" not in result.stderr
+    assert out_path.exists()
+    assert "Saved" in result.stdout
 
 
 def test_main_output_creates_missing_parent_dir(monkeypatch, tmp_path):

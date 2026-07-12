@@ -157,7 +157,7 @@ def cmd_scan(args) -> None:
 
     if getattr(args, "csv", None):
         combined.to_csv(args.csv, index=False)
-        print(f"\nSaved → {args.csv}")
+        print(f"\nSaved -> {args.csv}")
 
     # ── E9.2 — write to scanner.db unless --no-journal ────────────────────────
     if not getattr(args, "no_journal", False):
