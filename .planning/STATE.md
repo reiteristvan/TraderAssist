@@ -24,7 +24,7 @@ current_phase_name: cli-output-reporting
 See: .planning/PROJECT.md (updated 2026-07-09)
 
 **Core value:** Surface high-quality swing trade setups where the signal has a genuine edge — not just gate compliance.
-**Current focus:** Phase 07 — cli-output-reporting
+**Current focus:** Planning next milestone (v1.1 shipped 2026-07-12)
 
 ## Current Position
 
@@ -60,16 +60,9 @@ Last activity: 2026-07-12 — Milestone v1.1 completed and archived
 
 ## Accumulated Context
 
-### Key Decisions (carried into v1.1)
+Full decision log lives in `.planning/PROJECT.md` (Key Decisions table) and `.planning/RETROSPECTIVE.md` (v1.1 section) — cleared here per milestone-close convention.
 
-- Diagnostic-only: seasonality tool is standalone CLI + CSV — no scan/backtest/UI wiring, no schema bump
-- Year-block bootstrap (not naive daily resampling) — honest CI given cross-sectional correlation within a sector
-- Significance = 95% CI excludes zero; no tuning to manufacture significance (anti-cherry-picking discipline)
-- GICS sector granularity only — sub-sector/industry seasonality out of scope for v1.1
-- Survivorship bias documented via warning, not corrected (current constituents only)
-- `bool(NaN)` evaluates to True — always guard signal fields with `pd.isna()` (v1.0 lesson)
-
-### Deferred Items (v2 — unrelated to this milestone)
+### Deferred Items (carried forward — none resolved by v1.1)
 
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
@@ -90,29 +83,11 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-07-12T10:23:30.788Z
-Stopped at: Completed quick task 260712-h7l (SEAS-13 gap fix); Phase 07 verification re-run pending
+Last session: 2026-07-12T13:16:04.595Z
+Stopped at: v1.1 Weekly Seasonality Analyzer milestone complete — archived, tagged, PROJECT.md/ROADMAP.md/RETROSPECTIVE.md updated
 Resume file: None
 
-## Decisions
-
-- [Phase 05]: get_sector() reuses fetch_with_retry and _is_reserved from data_store rather than reimplementing
-- [Phase 05]: Reserved-name test proves guard fires before fetch, not via filesystem existence check (Windows CON device quirk)
-- [Phase 05]: universe_path uses an explicit 4-entry whitelist dict (no raw-arg Path interpolation) — path-traversal mitigation for T-05-03
-- [Phase 05]: resolve_sector derives valid names solely from SECTOR_ETF_MAP (no second hardcoded sector list), per D-02
-- [Phase 05]: validate_history admission (>=2yr) is computed on raw get_history() output before any --years trim, per D-05/D-06
-- [Phase 05]: main() prints fixed-format 'Admitted: N  Skipped: N' labels so tests can assert stable substrings
-- [Phase 05]: Skipped-ticker preview capped at 10 pairs to keep stdout readable for the all universe
-- [Phase 06]: Baseline for delta_vs_baseline_bps is the flat pooled mean over every ticker-day row (D-01), not an average of per-week means
-- [Phase 06]: week_observed_stats returns only weeks present in the panel — no padding to 52 rows (Phase 7's concern)
-- [Phase 06]: check_thin_data mirrors resolve_sector's descriptive ValueError-abort pattern -- dataset-wide distinct-year count, no log-and-continue
-- [Phase 06]: bootstrap_week_ci resamples years via precomputed sum/count matrices + default_rng fancy-indexing; baseline recomputed per iteration, never fixed
-- [Phase 06]: significance test uses a zero-variance-across-years panel so the bootstrap CI collapses to a deterministic point -- avoids flaky CI-boundary assertions
-- [Phase 06]: compute_seasonality_stats resolves bootstrap_iters/seed None -> module defaults internally, mirroring load_sector_dataset's years pass-through convention
-- [Phase 06]: _synthetic_panel uses calendar-year bdate_range (not periods=n_years*261) -- verified to reproduce RESEARCH.md's stated week-28 injected CI almost exactly
-- [Phase 07]: Top-5/bottom-5 dedup is priority-based -- highest claims min(5,available) weeks first, lowest gets whatever distinct weeks remain (D-08)
-- [Phase 07]: pad_weeks_table drops insufficient_years/std_bps from its 9-column output -- communicated via N/A cells plus build_summary's callout instead (D-02, D-11)
-- [Phase 07]: pandas bool-dtype columns always yield np.bool_ scalars on element access -- test assertions must use bool(...) is False, not bare is False
+Per-phase implementation decisions from v1.1 (Phase 5/6/7) are preserved permanently in each phase's SUMMARY.md under `.planning/milestones/v1.1-phases/` and summarized in `.planning/RETROSPECTIVE.md`'s v1.1 section — cleared from this working file per milestone-close convention.
 
 ## Operator Next Steps
 
