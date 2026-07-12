@@ -213,7 +213,7 @@ def test_main_output_writes_csv_and_still_prints_stdout(monkeypatch, capsys, tmp
     assert out_path.exists()
     assert "week" in captured.out
     assert "none — no week deviates significantly from baseline" in captured.out
-    assert f"Saved → {out_path}" in captured.out
+    assert f"Saved -> {out_path}" in captured.out
 
     written = pd.read_csv(out_path, keep_default_na=False)
     assert len(written) == 52

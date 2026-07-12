@@ -99,7 +99,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.output:
         seasonality.write_weeks_csv(padded, args.output)
-        print(f"\nSaved → {args.output}")
+        print(f"\nSaved -> {args.output}")
 
     return 0
 
