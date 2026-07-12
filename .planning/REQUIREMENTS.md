@@ -22,10 +22,10 @@
 
 ### Output
 
-- [ ] **SEAS-10**: CLI prints a 52-row table (week, mean_daily_ret_bps, delta_vs_baseline_bps, ci_low_bps, ci_high_bps, median_bps, n_obs, n_years, significant) to stdout, sorted by week
-- [ ] **SEAS-11**: CLI prints a summary: baseline mean, list of significant weeks (or "none — no week deviates significantly from baseline"), and the 5 highest/lowest weeks by delta with an explicit multiple-comparison caveat
-- [ ] **SEAS-12**: CLI prints a one-line survivorship-bias warning in the output header
-- [ ] **SEAS-13**: `--output` writes the results table to CSV when given; stdout output always happens regardless
+- [x] **SEAS-10**: CLI prints a 52-row table (week, mean_daily_ret_bps, delta_vs_baseline_bps, ci_low_bps, ci_high_bps, median_bps, n_obs, n_years, significant) to stdout, sorted by week
+- [x] **SEAS-11**: CLI prints a summary: baseline mean, list of significant weeks (or "none — no week deviates significantly from baseline"), and the 5 highest/lowest weeks by delta with an explicit multiple-comparison caveat
+- [x] **SEAS-12**: CLI prints a one-line survivorship-bias warning in the output header
+- [x] **SEAS-13**: `--output` writes the results table to CSV when given; stdout output always happens regardless
 
 ### Verification
 
@@ -56,10 +56,10 @@
 | SEAS-07 | Phase 6 | Complete |
 | SEAS-08 | Phase 6 | Complete |
 | SEAS-09 | Phase 6 | Complete |
-| SEAS-10 | Phase 7 | Pending |
-| SEAS-11 | Phase 7 | Pending |
-| SEAS-12 | Phase 7 | Pending |
-| SEAS-13 | Phase 7 | Pending |
+| SEAS-10 | Phase 7 | Complete |
+| SEAS-11 | Phase 7 | Complete |
+| SEAS-12 | Phase 7 | Complete |
+| SEAS-13 | Phase 7 | Complete |
 | SEAS-14 | Phase 6 | Complete |
 | SEAS-15 | Phase 6 | Complete |
 

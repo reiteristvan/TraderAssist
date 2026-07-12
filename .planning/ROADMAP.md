@@ -25,7 +25,7 @@ Full details: [.planning/milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 - [x] **Phase 5: Sector Resolution & Data Input** - Resolve a sector's tickers via a persisted cache and gather validated daily history ready for analysis (completed 2026-07-09)
 - [x] **Phase 6: Seasonality Statistics & Verification** - Per-week bootstrap statistics with CI-based significance flagging, proven on synthetic data (completed 2026-07-10)
-- [ ] **Phase 7: CLI Output & Reporting** - Table, interpretive summary, survivorship warning, and optional CSV export
+- [x] **Phase 7: CLI Output & Reporting** - Table, interpretive summary, survivorship warning, and optional CSV export (completed 2026-07-12)
 
 ## Phase Details
 
@@ -102,7 +102,7 @@ Full details: [.planning/milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 07-02-PLAN.md — seasonality_by_week.py::main: wire header + 52-row table + summary + optional CSV export (SEAS-10..13)
+- [x] 07-02-PLAN.md — seasonality_by_week.py::main: wire header + 52-row table + summary + optional CSV export (SEAS-10..13)
 
 ## Progress
 
@@ -117,4 +117,4 @@ Phases execute in numeric order: 5 → 6 → 7
 | 4. Winner/Loser Characteristic Analysis | v1.0 | 2/2 | Complete | 2026-07-01 |
 | 5. Sector Resolution & Data Input | v1.1 | 3/3 | Complete    | 2026-07-09 |
 | 6. Seasonality Statistics & Verification | v1.1 | 3/3 | Complete    | 2026-07-10 |
-| 7. CLI Output & Reporting | v1.1 | 1/2 | In Progress|  |
+| 7. CLI Output & Reporting | v1.1 | 2/2 | Complete    | 2026-07-12 |

@@ -135,3 +135,7 @@ Phase 7 (CLI Output & Reporting) is now complete. `seasonality_by_week.py` deliv
 ---
 *Phase: 07-cli-output-reporting*
 *Completed: 2026-07-10*
+
+## Self-Check: PASSED
+
+All 3 commits (2141c8b, 297e287, d696b4b) verified present in git log. `seasonality_by_week.py`, `tests/test_seasonality_cli.py`, and this SUMMARY.md confirmed on disk.
