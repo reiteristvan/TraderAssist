@@ -6,10 +6,58 @@ attach_risk: populates stop/target/atr/risk_reward on any result dataclass.
 from __future__ import annotations
 
 import dataclasses
+import math
 from dataclasses import dataclass
 
 import pandas as pd
 from ta.volatility import AverageTrueRange
+
+# House rule: a stop may never sit closer to entry than 0.5x ATR. Chosen on
+# execution-realism grounds (a stop inside half an ATR can't survive normal
+# intraday noise), NOT fitted to backtest expectancy — mirrors the existing
+# breakout 0.5x ATR buffer. Approved by Istvan 2026-08-19 (quick-260819-g5h).
+# Do not tune this value.
+MIN_STOP_ATR_MULT = 0.5
+
+
+def apply_min_stop_floor(stop, price, atr, mult=MIN_STOP_ATR_MULT):
+    """Widen `stop` so that `price - stop >= mult * atr`, never tightening it.
+
+    Total function: no code path raises. Degenerate inputs (non-finite,
+    non-numeric, atr <= 0) return `stop` unchanged so callers wrapped in
+    broad excepts (scanner/backtest.py, scanner/core.py) never silently
+    drop a signal because this helper raised.
+    """
+    try:
+        stop_f = float(stop)
+        price_f = float(price)
+        atr_f = float(atr)
+    except (TypeError, ValueError):
+        return stop
+
+    if not (math.isfinite(stop_f) and math.isfinite(price_f) and math.isfinite(atr_f)):
+        return stop
+    if atr_f <= 0:
+        return stop
+
+    # Floor (not round) to the cent: rounding can land the resulting risk up
+    # to half a cent short of mult * atr, breaking the strict floor invariant.
+    # A tiny epsilon is subtracted before flooring so that boundary-exact
+    # cases (e.g. price - mult*atr landing precisely on a cent) still floor
+    # down one cent further; binary float64 representation of the cent
+    # values (e.g. 7.30 - 7.20 == 0.09999999999999964, not 0.10) can
+    # otherwise make a mathematically-exact boundary appear to violate the
+    # >= mult * atr invariant under a naive float comparison downstream.
+    raw_value = price_f - mult * atr_f
+    floor_candidate = math.floor((raw_value - 1e-9) * 100) / 100
+
+    if not floor_candidate < price_f:
+        # Only reachable when mult * atr is under one cent; the raw stop is
+        # already below entry (caller's contract), so keep it as-is rather
+        # than emitting a stop at or above entry.
+        return stop
+
+    return min(stop_f, floor_candidate)
 
 
 @dataclass
@@ -245,6 +293,10 @@ def attach_risk(result, df: pd.DataFrame):
             suggested_target=None,
             risk_reward=None,
         )
+
+    # quick-260819-g5h (approved 2026-08-19): widen stops that sit inside
+    # 0.5x ATR of entry. Never tightens; degenerate ATR leaves stop unchanged.
+    stop = apply_min_stop_floor(stop, price, atr_val)
 
     targets = compute_targets(df, price, stop, setup, atr_val)
     return dataclasses.replace(
