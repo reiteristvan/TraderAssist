@@ -426,3 +426,253 @@ def test_industry_no_lookahead_backtest():
         industry_momentum=expected_mom,  # TypeError/AttributeError in RED
     )
     assert sig.industry_momentum == pytest.approx(expected_mom)
+
+
+# ── entry_features() — Phase 4 W/L entry-time metric persistence (260819-gv9) ──
+
+def _entry_frame(n: int = 260, base_price: float = 100.0,
+                 base_volume: float = 200000.0, last_volume: float = 300000.0):
+    """Deterministic >=252-row daily OHLCV frame for entry_features fallback tests."""
+    idx = pd.bdate_range(end=pd.Timestamp("2026-06-01"), periods=n)
+    close = pd.Series([base_price + i * 0.05 for i in range(n)], index=idx)
+    high = close + 1.0
+    low = close - 1.0
+    open_ = close - 0.3
+    volume = pd.Series([base_volume] * n, index=idx)
+    volume.iloc[-1] = last_volume
+    return pd.DataFrame({"Open": open_, "High": high, "Low": low, "Close": close, "Volume": volume})
+
+
+def _breakout_result(**overrides) -> "object":
+    from scanner.strategies.breakout import BreakoutResult
+    fields = dict(
+        ticker="AAPL", close=100.0, pct_to_52w_high=99.51, vol_ratio=3.48, rsi=61.0,
+        adx=25.0, bb_width=0.1, market_cap=2.5e9, profitable=True, debt_equity=50.0,
+        score=70.0, qualified=True, failed_gates=[], skipped_gates=[],
+        gates_passed=10, gates_total=10, as_of=date(2026, 1, 5), days_to_earnings=None,
+    )
+    fields.update(overrides)
+    return BreakoutResult(**fields)
+
+
+def _pullback_result(**overrides) -> "object":
+    from scanner.strategies.pullback import PullbackResult
+    fields = dict(
+        ticker="AAPL", close=100.0, sma50=95.0, sma200=90.0, ma200_distance_pct=0.10,
+        swing_high=110.0, pullback_depth_pct=5.17, pullback_days=5, support="sma50",
+        support_level=95.0, distance_to_support_pct=0.02, vol_contraction=0.5,
+        rsi=48.0, adx=25.0, trigger_candle=True, pocket_pivot=False, nr7=False,
+        rs_strength=1.0, rs_at_new_high=False, sector="Technology", sector_etf="XLK",
+        sector_outperforming=True, weekly_above_30ma=True, weekly_30ma_rising=True,
+        days_to_earnings=None, market_cap=2.5e9, profitable=True, debt_equity=50.0,
+        qualified=True, failed_gates=[], skipped_gates=[], gates_passed=10, gates_total=10,
+        score=65.0, as_of=date(2026, 1, 5),
+    )
+    fields.update(overrides)
+    return PullbackResult(**fields)
+
+
+def test_entry_features_returns_exactly_four_keys():
+    from scanner.core import entry_features
+    br = _breakout_result()
+    df = _entry_frame()
+    out = entry_features(br, df)
+    assert set(out.keys()) == {"rsi_entry", "rvol", "pullback_depth_pct", "pct_to_52w_high"}
+
+
+def test_entry_features_breakout_basic():
+    """vol_ratio=3.48, rsi=61.0, pct_to_52w_high=99.51 -> 61.0, 3.48, None, 0.49 (D-03)."""
+    from scanner.core import entry_features
+    br = _breakout_result(vol_ratio=3.48, rsi=61.0, pct_to_52w_high=99.51)
+    df = _entry_frame()
+    out = entry_features(br, df)
+    assert out["rsi_entry"] == pytest.approx(61.0)
+    assert out["rvol"] == pytest.approx(3.48)
+    assert out["pullback_depth_pct"] is None
+    assert out["pct_to_52w_high"] == pytest.approx(0.49)
+
+
+def test_entry_features_breakout_zero_vol_ratio_not_none():
+    """Breakout vol_ratio=0.0 is legitimate — must stay 0.0, never coerced to None."""
+    from scanner.core import entry_features
+    br = _breakout_result(vol_ratio=0.0)
+    df = _entry_frame()
+    out = entry_features(br, df)
+    assert out["rvol"] == 0.0
+    assert out["rvol"] is not None
+
+
+def test_entry_features_pullback_with_explicit_scalars():
+    """Pullback with vol_sma50=200000.0, last Volume=300000.0 -> rvol 1.5;
+    high_52w=125.0, close=100.0 -> pct_to_52w_high 20.0."""
+    from scanner.core import entry_features
+    pb = _pullback_result(rsi=48.0, pullback_depth_pct=5.17, close=100.0)
+    df = _entry_frame(base_volume=200000.0, last_volume=300000.0)
+    out = entry_features(pb, df, vol_sma50=200000.0, high_52w=125.0)
+    assert out["rsi_entry"] == pytest.approx(48.0)
+    assert out["pullback_depth_pct"] == pytest.approx(5.17)
+    assert out["rvol"] == pytest.approx(1.5)
+    assert out["pct_to_52w_high"] == pytest.approx(20.0)
+
+
+def test_entry_features_pullback_rvol_none_vol_sma50_falls_back_to_frame():
+    """vol_sma50=None -> computed from the frame's own 50-bar mean; equals the value
+    obtained when that mean is passed in explicitly."""
+    from scanner.core import entry_features
+    pb = _pullback_result()
+    df = _entry_frame(base_volume=200000.0, last_volume=300000.0)
+    expected_mean = float(df["Volume"].rolling(50).mean().iloc[-1])
+
+    out_none = entry_features(pb, df, vol_sma50=None)
+    out_explicit = entry_features(pb, df, vol_sma50=expected_mean)
+
+    assert out_none["rvol"] == pytest.approx(out_explicit["rvol"])
+
+
+def test_entry_features_pullback_pct_high_none_falls_back_to_frame():
+    """high_52w=None -> computed from the frame's own 252-bar rolling max (min_periods=200);
+    equals the value obtained when that max is passed in explicitly."""
+    from scanner.core import entry_features
+    pb = _pullback_result(close=100.0)
+    df = _entry_frame()
+    expected_h52 = float(df["High"].rolling(252, min_periods=200).max().iloc[-1])
+
+    out_none = entry_features(pb, df, high_52w=None)
+    out_explicit = entry_features(pb, df, high_52w=expected_h52)
+
+    assert out_none["pct_to_52w_high"] == pytest.approx(out_explicit["pct_to_52w_high"])
+
+
+@pytest.mark.parametrize("bad_vol_sma50", [0.0, -5.0, float("nan")])
+def test_entry_features_degenerate_vol_sma50_yields_none(bad_vol_sma50):
+    """Caller-supplied vol_sma50 of 0.0, negative, or NaN yields rvol=None — never a raise,
+    never NaN, and no silent fallback to the frame (the caller's answer is trusted)."""
+    from scanner.core import entry_features
+    pb = _pullback_result()
+    df = _entry_frame()
+    out = entry_features(pb, df, vol_sma50=bad_vol_sma50)
+    assert out["rvol"] is None
+
+
+@pytest.mark.parametrize("bad_high_52w", [0.0, -5.0, float("nan")])
+def test_entry_features_degenerate_high_52w_yields_none(bad_high_52w):
+    """Caller-supplied high_52w of 0.0, negative, or NaN yields pct_to_52w_high=None."""
+    from scanner.core import entry_features
+    pb = _pullback_result()
+    df = _entry_frame()
+    out = entry_features(pb, df, high_52w=bad_high_52w)
+    assert out["pct_to_52w_high"] is None
+
+
+def test_entry_features_missing_rsi_yields_none_no_raise():
+    """Result object with no rsi attribute at all -> rsi_entry None, no raise."""
+    from scanner.core import entry_features
+
+    class _NoRsi:
+        close = 100.0
+        pullback_depth_pct = 5.0
+
+    df = _entry_frame()
+    out = entry_features(_NoRsi(), df)
+    assert out["rsi_entry"] is None
+
+
+def test_entry_features_never_raises_on_garbage_input():
+    """Totally malformed inputs (None df, None result) do not raise."""
+    from scanner.core import entry_features
+    out = entry_features(None, None)
+    assert out == {
+        "rsi_entry": None, "rvol": None,
+        "pullback_depth_pct": None, "pct_to_52w_high": None,
+    }
+
+
+# ── Legacy equivalence — pins the extraction against the pre-refactor block ───
+
+def _legacy_entry_features(result, df, precomp_t, as_of_ts):
+    """Literal reimplementation of the pre-refactor scanner/backtest.py:435-457 block.
+
+    Exists ONLY to prove the entry_features() extraction is a refactor, not a
+    rewrite. Update this function only alongside a deliberate, approved semantic
+    change to entry-time feature computation.
+    """
+    from scanner.strategies.breakout import BreakoutResult
+
+    is_breakout = isinstance(result, BreakoutResult)
+    rsi = getattr(result, "rsi", None)
+    rvol = getattr(result, "vol_ratio", None)  # BreakoutResult only
+    if rvol is None and precomp_t is not None:
+        vol_sma50 = float(precomp_t["vol_sma50"].asof(as_of_ts))
+        cur_vol = float(df["Volume"].iloc[-1])
+        if vol_sma50 > 0 and not pd.isna(vol_sma50) and not pd.isna(cur_vol):
+            rvol = cur_vol / vol_sma50
+    pullback_depth = getattr(result, "pullback_depth_pct", None)
+    pct_high = None
+    if is_breakout:
+        raw = getattr(result, "pct_to_52w_high", None)
+        if raw is not None:
+            pct_high = 100.0 - raw
+    elif precomp_t is not None:
+        h52 = precomp_t["high_52w"].asof(as_of_ts)
+        if not pd.isna(h52) and float(h52) > 0:
+            pct_high = (float(h52) - result.close) / float(h52) * 100
+    return {
+        "rsi_entry": rsi, "rvol": rvol,
+        "pullback_depth_pct": pullback_depth, "pct_to_52w_high": pct_high,
+    }
+
+
+def test_entry_features_legacy_equivalence_pullback():
+    from scanner.core import entry_features
+    df = _entry_frame(base_volume=200000.0, last_volume=300000.0)
+    as_of_ts = df.index[-1]
+    vol_sma50_series = df["Volume"].rolling(50).mean()
+    high_52w_series = df["High"].rolling(252, min_periods=200).max()
+    precomp_t = {"vol_sma50": vol_sma50_series, "high_52w": high_52w_series}
+
+    pb = _pullback_result(rsi=48.0, pullback_depth_pct=5.17, close=100.0)
+
+    vol_sma50_val = float(vol_sma50_series.asof(as_of_ts))
+    high_52w_val = float(high_52w_series.asof(as_of_ts))
+
+    got = entry_features(pb, df, vol_sma50=vol_sma50_val, high_52w=high_52w_val)
+    expected = _legacy_entry_features(pb, df, precomp_t, as_of_ts)
+
+    assert got == pytest.approx(expected)
+
+
+def test_entry_features_legacy_equivalence_breakout():
+    from scanner.core import entry_features
+    df = _entry_frame(base_volume=200000.0, last_volume=300000.0)
+    as_of_ts = df.index[-1]
+    vol_sma50_series = df["Volume"].rolling(50).mean()
+    high_52w_series = df["High"].rolling(252, min_periods=200).max()
+    precomp_t = {"vol_sma50": vol_sma50_series, "high_52w": high_52w_series}
+
+    br = _breakout_result(vol_ratio=3.48, rsi=61.0, pct_to_52w_high=99.51)
+
+    vol_sma50_val = float(vol_sma50_series.asof(as_of_ts))
+    high_52w_val = float(high_52w_series.asof(as_of_ts))
+
+    got = entry_features(br, df, vol_sma50=vol_sma50_val, high_52w=high_52w_val)
+    expected = _legacy_entry_features(br, df, precomp_t, as_of_ts)
+
+    assert got == pytest.approx(expected)
+
+
+def test_entry_features_legacy_equivalence_degenerate_denominators():
+    """Legacy block treats a non-positive/NaN precomputed scalar the same way this
+    helper does: no rvol / no pct_to_52w_high, never a raise."""
+    from scanner.core import entry_features
+    df = _entry_frame()
+    as_of_ts = df.index[-1]
+    zero_series = pd.Series([0.0] * len(df), index=df.index)
+    precomp_t = {"vol_sma50": zero_series, "high_52w": zero_series}
+
+    pb = _pullback_result(rsi=48.0, pullback_depth_pct=5.17, close=100.0)
+
+    got = entry_features(pb, df, vol_sma50=0.0, high_52w=0.0)
+    expected = _legacy_entry_features(pb, df, precomp_t, as_of_ts)
+
+    assert got["rvol"] == expected["rvol"] is None
+    assert got["pct_to_52w_high"] == expected["pct_to_52w_high"] is None

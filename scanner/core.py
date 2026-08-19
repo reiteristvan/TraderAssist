@@ -339,6 +339,103 @@ def _attach_industry_rank_pct(rows: list) -> None:
             row["industry_rank_pct"] = float(val) if not pd.isna(val) else None
 
 
+def _safe_float(x) -> Optional[float]:
+    """Coerce to a plain finite float, or None. Never raises, never returns NaN."""
+    if x is None:
+        return None
+    try:
+        xf = float(x)
+    except (TypeError, ValueError):
+        return None
+    return xf if math.isfinite(xf) else None
+
+
+def entry_features(
+    result,
+    df: pd.DataFrame,
+    vol_sma50: Optional[float] = None,
+    high_52w: Optional[float] = None,
+) -> dict:
+    """Entry-time signal features for winner/loser analysis — persisted DB columns.
+
+    Returns a fixed 4-key dict: rsi_entry, rvol, pullback_depth_pct, pct_to_52w_high.
+    Every value is either None or a plain finite float — never NaN — so a DB write
+    produces SQL NULL rather than a NaN bind (Phase 4 W/L extraction, quick task
+    260819-gv9).
+
+    TOTAL — no input causes this function to raise. `run_scan` calls it outside any
+    try/except (a raise there would kill an entire live scan), and the backtest's
+    broad exception handlers would swallow a raise here and silently drop signals.
+
+    `vol_sma50` / `high_52w` are the caller's pre-computed point-in-time scalars.
+    The backtest inner loop passes `precomp_t.vol_sma50.asof(as_of_ts)` /
+    `precomp_t.high_52w.asof(as_of_ts)` here to keep its O(log n) `.asof()` fast
+    path — a 10-year sp500 backtest already runs ~9-10 hours, so this function
+    falls back to computing the same rolling windows directly from `df` ONLY when
+    the pre-computed scalar is not supplied (the live path, which has no precomp
+    series). A caller-supplied value that is present but degenerate (0.0,
+    negative, or NaN) is treated as "known invalid" and yields None — it does
+    NOT fall back to the frame, because the caller explicitly had an answer and
+    that answer says "no valid data."
+
+    `pct_to_52w_high` is percent distance BELOW the 52-week high for BOTH
+    strategies — higher means further below the high (quick task 260819-gv9,
+    D-03). `BreakoutResult.pct_to_52w_high` is natively the OPPOSITE convention
+    (`close / high_52w * 100`, higher = closer to the high) and is converted here
+    via `100.0 - raw`. Writing the raw breakout value through would put a
+    "closeness" number and a "distance" number in the same DB column.
+    """
+    out = {
+        "rsi_entry": None,
+        "rvol": None,
+        "pullback_depth_pct": None,
+        "pct_to_52w_high": None,
+    }
+    try:
+        from scanner.strategies.breakout import BreakoutResult
+
+        out["rsi_entry"] = _safe_float(getattr(result, "rsi", None))
+
+        if isinstance(result, BreakoutResult):
+            out["rvol"] = _safe_float(getattr(result, "vol_ratio", None))
+            raw_pct = _safe_float(getattr(result, "pct_to_52w_high", None))
+            if raw_pct is not None:
+                out["pct_to_52w_high"] = 100.0 - raw_pct
+            # pullback_depth_pct has no meaning for a breakout result — stays None
+        else:
+            out["pullback_depth_pct"] = _safe_float(getattr(result, "pullback_depth_pct", None))
+
+            if vol_sma50 is None:
+                denom = (
+                    _safe_float(df["Volume"].rolling(50).mean().iloc[-1])
+                    if df is not None and len(df) else None
+                )
+            else:
+                denom = _safe_float(vol_sma50)
+            numer = _safe_float(df["Volume"].iloc[-1]) if df is not None and len(df) else None
+            if denom is not None and denom > 0 and numer is not None:
+                out["rvol"] = numer / denom
+
+            close = _safe_float(getattr(result, "close", None))
+            if high_52w is None:
+                h52 = (
+                    _safe_float(df["High"].rolling(252, min_periods=200).max().iloc[-1])
+                    if df is not None and len(df) else None
+                )
+            else:
+                h52 = _safe_float(high_52w)
+            if h52 is not None and h52 > 0 and close is not None:
+                out["pct_to_52w_high"] = (h52 - close) / h52 * 100
+    except Exception:
+        return {
+            "rsi_entry": None,
+            "rvol": None,
+            "pullback_depth_pct": None,
+            "pct_to_52w_high": None,
+        }
+    return out
+
+
 def _sector_strength(sector: Optional[str], market_data: dict) -> dict:
     out = {"sector_etf": None, "sector_above_50ma": False, "sector_outperforming": False}
     if not sector:
