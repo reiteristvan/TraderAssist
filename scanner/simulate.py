@@ -11,6 +11,8 @@ from typing import Callable, Optional
 
 import pandas as pd
 
+from scanner.targets import apply_min_stop_floor
+
 
 @dataclass
 class Signal:
@@ -88,7 +90,15 @@ def simulate_trades(
     3. High ≥ target → exit at target
     4. bar_idx == time_stop − 1 → exit at close (time_stop)
 
-    Stops and targets come from the Signal; never recomputed here.
+    Target is taken from the Signal as-is and never recomputed. The stop is
+    the Signal's published stop widened at entry (quick-260819-ko0) so that
+    entry_px − stop is never less than MIN_STOP_ATR_MULT × ATR — an adverse
+    overnight gap can otherwise collapse the risk denominator even when the
+    close-side floor (scanner/targets.py, quick-260819-g5h) already made the
+    published stop executable at signal time. That widened value is what
+    drives stop-hit detection, the stop-out exit price, and every R metric.
+    The gap guards below still test against the Signal's published stop; the
+    published `signals.stop` DB value is deliberately NOT rewritten.
     """
     trades: list[Trade] = []
 
@@ -157,7 +167,15 @@ def simulate_trades(
             ))
             continue
 
-        risk = entry_px - sig.stop  # always > 0 after gap guards
+        # quick-260819-ko0 (approved 2026-08-19): widen the stop at entry so
+        # entry_px - stop never collapses below MIN_STOP_ATR_MULT x ATR on an
+        # adverse overnight gap. Entry-side companion to the close-side floor
+        # in scanner/targets.py (quick-260819-g5h). Must be computed AFTER
+        # the gap_skip_down guard above (which stays on sig.stop) so a
+        # widened stop can never rescue a gap-skipped trade.
+        effective_stop = apply_min_stop_floor(sig.stop, entry_px, sig.atr)
+
+        risk = entry_px - effective_stop  # always > 0 after gap guards
         target_dist = sig.target - entry_px
         target_r_val = target_dist / risk
         target_atr_val = (target_dist / sig.atr) if sig.atr and sig.atr > 0 else None
@@ -185,12 +203,12 @@ def simulate_trades(
             min_low = min(min_low, low)
             max_high = max(max_high, high)
 
-            stop_hit = low <= sig.stop
+            stop_hit = low <= effective_stop
             target_hit = high >= sig.target
 
             if stop_hit:
                 exit_date = bar_dt
-                exit_px_val = sig.stop
+                exit_px_val = effective_stop
                 exit_reason = "stop"
                 if target_hit:
                     flags["ambiguous_bar"] = True
