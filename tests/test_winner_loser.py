@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import inspect
 import random
+import sqlite3
+from pathlib import Path
 
 import pytest
 
+from scanner import store_db
 from scanner.winner_loser import (
     FEATURES,
     LEGACY_FEATURES,
@@ -329,3 +332,136 @@ def test_analyze_returns_fully_populated_result():
     assert result.categorical_rows
     assert result.n_tests > 0
     assert all(isinstance(r, Rule) for r in result.top_rules)
+
+
+# ── Task 4: reference-run parity against the prototype ─────────────────────
+# Skipped on a clean offline checkout (no data/scanner.db, or the reference
+# run isn't in it) so `pytest -q` stays green everywhere. Expected values
+# published by the throwaway prototype run on 2026-08-19 against run_id
+# 4f4fe68_2021-01-01_20260702_090418, restricted to LEGACY_FEATURES (isolates
+# the promotion/refactor from the schema-v10 feature addition). A future
+# mismatch means the underlying DATA moved -- most likely the reference run
+# was re-executed after quick task 260819-g5h introduced the minimum
+# stop-distance floor, which would legitimately move every stored
+# r_multiple -- it does NOT mean these constants are stale; do not "fix" a
+# mismatch by editing the analysis code to force agreement.
+
+_REFERENCE_DB = Path("data/scanner.db")
+_REFERENCE_RUN_ID = "4f4fe68_2021-01-01_20260702_090418"
+
+_REFERENCE_EXPECTED = {
+    "train_n": 1404,
+    "holdout_n": 2409,
+    "train_baseline_r": -0.136,
+    "holdout_baseline_r": 0.159,
+    "n_tests": 48,
+    "best_rule_feature": "atr_pct",
+    "best_rule_direction": ">=",
+    "best_rule_threshold": 3.47,
+    "best_rule_train_r": 0.026,
+    "best_rule_holdout_r": -0.085,
+    "rho": -0.455,
+}
+
+
+def _reference_db_has_run() -> bool:
+    if not _REFERENCE_DB.exists():
+        return False
+    try:
+        conn = sqlite3.connect(str(_REFERENCE_DB))
+        row = conn.execute(
+            "SELECT COUNT(*) FROM signals WHERE run_id = ? AND qualified = 1 "
+            "AND r_multiple IS NOT NULL",
+            (_REFERENCE_RUN_ID,),
+        ).fetchone()
+        conn.close()
+        return bool(row and row[0] > 0)
+    except sqlite3.OperationalError:
+        return False
+
+
+_HAS_REFERENCE_RUN = _reference_db_has_run()
+
+
+@pytest.mark.skipif(
+    not _HAS_REFERENCE_RUN, reason="data/scanner.db or the reference run is not present"
+)
+def test_reference_run_parity_with_prototype_legacy_features():
+    conn = store_db.get_readonly_connection(_REFERENCE_DB)
+    try:
+        records, missing_columns = load_records(conn, _REFERENCE_RUN_ID)
+    finally:
+        conn.close()
+
+    result = analyze(
+        records, run_id=_REFERENCE_RUN_ID, db_path=str(_REFERENCE_DB),
+        split="2024-01-01", features=LEGACY_FEATURES, seed=11,
+        missing_columns=missing_columns,
+    )
+
+    assert result.train_n == _REFERENCE_EXPECTED["train_n"]
+    assert result.holdout_n == _REFERENCE_EXPECTED["holdout_n"]
+    assert result.train_baseline_r == pytest.approx(
+        _REFERENCE_EXPECTED["train_baseline_r"], abs=0.001
+    )
+    assert result.holdout_baseline_r == pytest.approx(
+        _REFERENCE_EXPECTED["holdout_baseline_r"], abs=0.001
+    )
+    assert result.n_tests == _REFERENCE_EXPECTED["n_tests"]
+
+    best = result.top_rules[0]
+    assert best.feature == _REFERENCE_EXPECTED["best_rule_feature"]
+    assert best.direction == _REFERENCE_EXPECTED["best_rule_direction"]
+    assert best.threshold == pytest.approx(
+        _REFERENCE_EXPECTED["best_rule_threshold"], abs=0.01
+    )
+    assert best.train_r == pytest.approx(
+        _REFERENCE_EXPECTED["best_rule_train_r"], abs=0.001
+    )
+    assert best.holdout_r == pytest.approx(
+        _REFERENCE_EXPECTED["best_rule_holdout_r"], abs=0.001
+    )
+
+    assert result.rho == pytest.approx(_REFERENCE_EXPECTED["rho"], abs=0.001)
+
+
+@pytest.mark.skipif(
+    not _HAS_REFERENCE_RUN, reason="data/scanner.db or the reference run is not present"
+)
+def test_reference_run_coverage_line_twelve_defined_eight_tested_four_skipped():
+    """D-04 end-to-end proof: the four v10 features are skipped and the
+    coverage counts read 12 defined / 8 tested / 4 skipped against the live
+    database, whatever its current migration state.
+
+    NOTE (discovered during Task 4, 2026-08-19): the PLAN's <discovered_state>
+    recorded the live database as schema v9 with the four v10 columns
+    physically ABSENT at planning time. Between planning and this task
+    running, some other process (e.g. a scan.py invocation) triggered the
+    lazy migrate() and the database is now schema v10 -- the four columns
+    physically exist. For the OLD reference run specifically they are still
+    all-NULL (it predates v10 feature computation), so this run now
+    demonstrates the "too few non-null" skip path rather than the "column
+    absent" path -- both are real, distinct, already-tested code paths (see
+    test_analyze_missing_columns_reported_with_distinct_reason for the
+    absent-column path, exercised synthetically so it doesn't depend on the
+    live DB's mutable migration state). The coverage counts (12/8/4) are
+    unaffected by which reason applies -- only the exact wording differs."""
+    conn = store_db.get_readonly_connection(_REFERENCE_DB)
+    try:
+        records, missing_columns = load_records(conn, _REFERENCE_RUN_ID)
+    finally:
+        conn.close()
+
+    result = analyze(
+        records, run_id=_REFERENCE_RUN_ID, db_path=str(_REFERENCE_DB),
+        split="2024-01-01", seed=11, missing_columns=missing_columns,
+    )
+
+    assert result.features_defined == 12
+    assert len(result.tested_features) == 8
+    assert len(result.skipped_features) == 4
+    skipped_names = {s["feature"] for s in result.skipped_features}
+    assert skipped_names == set(V10_FEATURES)
+    for s in result.skipped_features:
+        reason = s["reason"].lower()
+        assert "absent" in reason or "non-null" in reason

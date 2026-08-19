@@ -54,6 +54,7 @@ python scan.py journal resolve
 python scan.py journal compare --backtest <run_id>
 python scan.py universe build --index sp500 --out universes/sp500.txt
 python scan.py worker --once
+python winner_loser_split.py --run-id <run_id> --split 2024-01-01   # read-only train/holdout feature diagnostic
 ```
 
 ## DB schema — scanner.db (v6)
