@@ -454,3 +454,109 @@ def analyze(
         rho=rho,
         rho_n=len(rho_pairs),
     )
+
+
+# ── ASCII report rendering ───────────────────────────────────────────────────
+# String building lives here (testable without subprocess gymnastics);
+# print() lives only in winner_loser_split.py. Every character in every
+# string returned below must be ASCII (D-06) -- milestone v1.1 shipped a
+# crash where one non-ASCII character in a print raised UnicodeEncodeError
+# on a cp1252 stream, and 319 passing tests missed it because capsys
+# bypasses real stream encoding entirely. Comments may keep the house
+# U+2500 section-rule style; these rendered strings may not.
+
+
+def _fmt_ci(ci: tuple[float, float]) -> str:
+    lo, hi = ci
+    return f"[{lo:+.3f}, {hi:+.3f}]"
+
+
+def render_report(result: WinnerLoserResult) -> str:
+    """Compose the full ASCII diagnostic report, in the prototype's section
+    order: trade counts, both baselines, the categorical table, the
+    coverage/multiple-comparison lines, the top-N rule table, the rank-
+    correlation line.
+    """
+    lines: list[str] = []
+
+    lines.append(
+        f"trades: train(<{result.split}) n={result.train_n}  "
+        f"holdout(>={result.split}) n={result.holdout_n}"
+    )
+    lines.append(
+        f"BASELINE train   mean R = {result.train_baseline_r:+.3f}   "
+        f"95% CI {_fmt_ci(result.train_baseline_ci)}"
+    )
+    lines.append(
+        f"BASELINE holdout mean R = {result.holdout_baseline_r:+.3f}   "
+        f"95% CI {_fmt_ci(result.holdout_baseline_ci)}"
+    )
+    lines.append("")
+
+    lines.append("CATEGORICAL FEATURES (mean R by level)")
+    lines.append(f"{'level':32s} {'trainN':>6s} {'trainR':>8s} {'holdN':>6s} {'holdR':>8s}")
+    lines.append("-" * 66)
+    for row in result.categorical_rows:
+        label = f"{row['key']}={row['level']}"
+        lines.append(
+            f"{label:32s} {row['train_n']:6d} {row['train_r']:+8.3f} "
+            f"{row['holdout_n']:6d} {row['holdout_r']:+8.3f}"
+        )
+    lines.append("")
+
+    # D-04: coverage must be visible -- how many features are defined, how
+    # many were tested, how many were skipped, and why each skip happened.
+    # Against the live schema-v9 database this prints "12 defined, 8
+    # tested, 4 skipped" naming each skipped feature as an absent column,
+    # not a silent "8 tested" with no explanation of the missing four.
+    n_tested = len(result.tested_features)
+    n_skipped = len(result.skipped_features)
+    lines.append(
+        f"features: {result.features_defined} defined, {n_tested} tested, "
+        f"{n_skipped} skipped"
+    )
+    for s in result.skipped_features:
+        if s["count"] is None:
+            lines.append(f"  skip {s['feature']}: {s['reason']}")
+        else:
+            lines.append(f"  skip {s['feature']}: {s['reason']} (count={s['count']})")
+    lines.append("")
+
+    # Derived from the live enumerated count, never hardcoded -- the burden
+    # growing with the feature set is information the user needs to see.
+    expected_spurious = result.n_tests * 0.05
+    lines.append(
+        f"tests evaluated on train: {result.n_tests}  "
+        f"(expect ~{expected_spurious:.0f} spurious 'winners' at p<0.05)"
+    )
+    lines.append("")
+
+    lines.append(
+        f"TOP {len(result.top_rules)} RULES BY TRAIN PERFORMANCE  ->  applied UNCHANGED to holdout"
+    )
+    lines.append(
+        f"{'rule':44s} {'trainN':>6s} {'trainR':>8s} {'holdN':>6s} {'holdR':>8s} "
+        f"{'holdout 95% CI':>20s}"
+    )
+    lines.append("-" * 100)
+    for rule in result.top_rules:
+        rule_str = f"{rule.feature} {rule.direction} {rule.threshold:.3g} ({rule.pname})"
+        lines.append(
+            f"{rule_str:44s} {rule.train_n:6d} {rule.train_r:+8.3f} "
+            f"{rule.holdout_n:6d} {rule.holdout_r:+8.3f} "
+            f"{_fmt_ci(rule.holdout_ci):>20s}"
+        )
+    lines.append("")
+
+    lines.append("Rank correlation of rule performance train -> holdout:")
+    if result.rho is None:
+        lines.append(
+            f"  insufficient rules with holdout membership >= {_MIN_KEPT} to compute rho"
+        )
+    else:
+        lines.append(
+            f"  Spearman rho = {result.rho:+.3f} over {result.rho_n} rules "
+            "(rho~0 => train ranking carries no information)"
+        )
+
+    return "\n".join(lines)

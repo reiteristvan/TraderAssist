@@ -67,17 +67,20 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        train, holdout = winner_loser.split_records(records, args.split)
+        result = winner_loser.analyze(
+            records,
+            run_id=args.run_id,
+            db_path=args.db,
+            split=args.split,
+            strategy=args.strategy,
+            top=args.top,
+            missing_columns=missing_columns,
+        )
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2
 
-    print(
-        f"trades: train(<{args.split}) n={len(train)}  "
-        f"holdout(>={args.split}) n={len(holdout)}"
-    )
-    print(f"BASELINE train   mean R = {winner_loser.mean_r(train):+.3f}")
-    print(f"BASELINE holdout mean R = {winner_loser.mean_r(holdout):+.3f}")
+    print(winner_loser.render_report(result))
 
     return 0
 
