@@ -811,6 +811,19 @@ def run_scan(
         row["industry_momentum"] = _strength["industry_mom_20d"]
         row["industry_above_50ma"] = _strength["industry_above_50ma"]
         row["industry_rank_pct"] = None  # populated by post-loop rank step below
+        # Entry-time W/L metrics (quick task 260819-gv9, D-01). NAMESPACED under
+        # entry_* — row is asdict(result), which for a BreakoutResult already
+        # holds a plain "pct_to_52w_high" key carrying the RAW closeness value
+        # that flows straight into combined.to_csv() in scan.py. Overwriting that
+        # key (or "pullback_depth_pct") with the normalized value would silently
+        # invert an exported CSV column's meaning (prior_investigation 3). Assign
+        # on EVERY row for both strategies so scan.py's pd.concat cannot invent
+        # NaN-filled columns for the strategy that didn't set them.
+        _entry = entry_features(result, df)
+        row["entry_rsi"] = _entry["rsi_entry"]
+        row["entry_rvol"] = _entry["rvol"]
+        row["entry_pullback_depth_pct"] = _entry["pullback_depth_pct"]
+        row["entry_pct_to_52w_high"] = _entry["pct_to_52w_high"]
         rows.append(row)
 
     if n > 1 and not verbose:

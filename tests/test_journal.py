@@ -52,6 +52,22 @@ def _live_row(ticker="AAPL", strat="pullback", sig_date="2026-01-05") -> dict:
     }
 
 
+def _live_row_with_entry_features(
+    ticker="AAPL", strat="pullback", sig_date="2026-01-05",
+    entry_rsi=48.0, entry_rvol=1.5,
+    entry_pullback_depth_pct=5.17, entry_pct_to_52w_high=20.0,
+) -> dict:
+    """`_live_row` plus the namespaced entry_* keys core.run_scan assigns (260819-gv9)."""
+    row = _live_row(ticker, strat, sig_date)
+    row.update({
+        "entry_rsi": entry_rsi,
+        "entry_rvol": entry_rvol,
+        "entry_pullback_depth_pct": entry_pullback_depth_pct,
+        "entry_pct_to_52w_high": entry_pct_to_52w_high,
+    })
+    return row
+
+
 def _sample_signal(sig_date=date(2026, 1, 5), stop=90.0, target=110.0) -> Signal:
     return Signal(
         date=sig_date, ticker="AAPL", strategy="pullback",
@@ -316,6 +332,97 @@ def test_compare_pulls_from_db_not_files(tmp_path):
     # Should succeed even though no parquet/md files exist
     assert result["backtest_expectancy_r"] == pytest.approx(0.8)
     assert result["backtest_win_rate"] == pytest.approx(0.6)
+
+
+# ── Quick task 260819-gv9 — entry-time feature write-path round-trips ─────────
+
+def test_write_live_signals_pullback_all_four_columns_non_null(tmp_path):
+    """A live pullback row round-trips all four entry-time columns non-NULL."""
+    db_path = _db(tmp_path)
+    row = _live_row_with_entry_features("AAPL", strat="pullback")
+    write_live_signals([row], "pullback", "2026-01-05", db_path=db_path)
+
+    conn = store_db.get_connection(db_path)
+    r = conn.execute("SELECT * FROM signals WHERE ticker='AAPL'").fetchone()
+    conn.close()
+    assert float(r["rsi_entry"]) == pytest.approx(48.0)
+    assert float(r["rvol"]) == pytest.approx(1.5)
+    assert float(r["pullback_depth_pct"]) == pytest.approx(5.17)
+    assert float(r["pct_to_52w_high"]) == pytest.approx(20.0)
+
+
+def test_write_live_signals_breakout_pullback_depth_null_pct_high_distance(tmp_path):
+    """A breakout-shaped live row: pullback_depth_pct NULL, pct_to_52w_high stores the
+    DISTANCE value (0.49), never the raw closeness value (99.51) — D-03."""
+    db_path = _db(tmp_path)
+    row = _live_row_with_entry_features(
+        "MSFT", strat="breakout",
+        entry_rsi=61.0, entry_rvol=3.48,
+        entry_pullback_depth_pct=None, entry_pct_to_52w_high=0.49,
+    )
+    write_live_signals([row], "breakout", "2026-01-05", db_path=db_path)
+
+    conn = store_db.get_connection(db_path)
+    r = conn.execute("SELECT * FROM signals WHERE ticker='MSFT'").fetchone()
+    conn.close()
+    assert float(r["rsi_entry"]) == pytest.approx(61.0)
+    assert float(r["rvol"]) == pytest.approx(3.48)
+    assert r["pullback_depth_pct"] is None
+    assert float(r["pct_to_52w_high"]) == pytest.approx(0.49)
+    assert float(r["pct_to_52w_high"]) != pytest.approx(99.51)
+
+
+def test_write_live_signals_nan_entry_features_round_trip_as_null(tmp_path):
+    """float NaN entry-time values (as arrive via the pandas concat/to_dict path)
+    round-trip as SQL NULL — a WHERE rvol IS NOT NULL query does not match (T-gv9-07)."""
+    import math as _math
+    db_path = _db(tmp_path)
+    row = _live_row_with_entry_features(
+        "NVDA",
+        entry_rsi=float("nan"), entry_rvol=float("nan"),
+        entry_pullback_depth_pct=float("nan"), entry_pct_to_52w_high=float("nan"),
+    )
+    write_live_signals([row], "pullback", "2026-01-05", db_path=db_path)
+
+    conn = store_db.get_connection(db_path)
+    r = conn.execute("SELECT * FROM signals WHERE ticker='NVDA'").fetchone()
+    matches = conn.execute(
+        "SELECT COUNT(*) FROM signals WHERE ticker='NVDA' AND rvol IS NOT NULL"
+    ).fetchone()[0]
+    conn.close()
+    assert r["rsi_entry"] is None
+    assert r["rvol"] is None
+    assert r["pullback_depth_pct"] is None
+    assert r["pct_to_52w_high"] is None
+    assert matches == 0
+
+
+def test_write_backtest_to_db_signal_entry_features_round_trip(tmp_path):
+    """A Signal with the four fields set, written via write_backtest_to_db, reads back
+    with all four columns equal to the Signal's values."""
+    db_path = _db(tmp_path)
+    sig = Signal(
+        date=date(2026, 1, 5), ticker="AAPL", strategy="pullback",
+        score=65.0, confidence="MEDIUM", stop=90.0, target=110.0,
+        atr=1.5, qualified=True, close=100.0,
+        rsi_entry=48.0, rvol=1.5, pullback_depth_pct=5.17, pct_to_52w_high=20.0,
+    )
+    write_backtest_to_db(
+        signals=[sig], qualified_trades=[], near_miss_trades=[],
+        run_id="bt_gv9", run_meta={"strategy": "pullback", "universe_size": 1},
+        metrics={"count": 1}, biases=[], db_path=db_path,
+    )
+
+    conn = store_db.get_connection(db_path)
+    r = conn.execute(
+        "SELECT * FROM signals WHERE ticker='AAPL' AND source='backtest'"
+    ).fetchone()
+    conn.close()
+    assert r is not None
+    assert float(r["rsi_entry"]) == pytest.approx(48.0)
+    assert float(r["rvol"]) == pytest.approx(1.5)
+    assert float(r["pullback_depth_pct"]) == pytest.approx(5.17)
+    assert float(r["pct_to_52w_high"]) == pytest.approx(20.0)
 
 
 # import to ensure it's available at module scope for the inspect test

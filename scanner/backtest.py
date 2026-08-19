@@ -21,6 +21,7 @@ from scanner.core import (
     _macd_bullish,
     _industry_strength,
     _attach_industry_rank_pct,
+    entry_features,
 )
 from scanner.data_store import resample_weekly
 from scanner.simulate import Signal
@@ -392,7 +393,6 @@ def generate_signals(
                     result.suggested_target,
                 )
                 from scanner.strategies.pullback import PullbackResult
-                from scanner.strategies.breakout import BreakoutResult
                 weekly_aligned = False
                 if isinstance(result, PullbackResult):
                     weekly_aligned = result.weekly_above_30ma
@@ -432,29 +432,14 @@ def generate_signals(
                 _rv = day_rank[_etf]
                 _rank_pct = float(_rv) if not pd.isna(_rv) else None
             _q_sig = quality_by_ticker.get(ticker)
-            # Phase 4 — W/L entry-time metric extraction (strategy-polymorphic via getattr)
-            _is_breakout_result = isinstance(result, BreakoutResult)
-            _rsi = getattr(result, 'rsi', None)
-            _rvol = getattr(result, 'vol_ratio', None)   # BreakoutResult only
-            if _rvol is None and precomp_t is not None:
-                # Pullback: compute RVOL from precomp vol_sma50 series
-                _vol_sma50 = float(precomp_t.vol_sma50.asof(as_of_ts))
-                _cur_vol = float(daily_sliced['Volume'].iloc[-1])
-                if _vol_sma50 > 0 and not pd.isna(_vol_sma50) and not pd.isna(_cur_vol):
-                    _rvol = _cur_vol / _vol_sma50
-            _pullback_depth = getattr(result, 'pullback_depth_pct', None)   # PullbackResult only
-            # pct_to_52w_high: standardize to "% distance below 52w high" (positive = farther below)
-            _pct_high: Optional[float] = None
-            if _is_breakout_result:
-                # Breakout: convert native ratio format (close/high*100) to distance format
-                _raw = getattr(result, 'pct_to_52w_high', None)
-                if _raw is not None:
-                    _pct_high = 100.0 - _raw
-            elif precomp_t is not None:
-                # Pullback: pct below 52w high = (high_52w - close) / high_52w * 100
-                _h52 = precomp_t.high_52w.asof(as_of_ts)
-                if not pd.isna(_h52) and float(_h52) > 0:
-                    _pct_high = (float(_h52) - result.close) / float(_h52) * 100
+            # Entry-time W/L metrics via the shared normalization helper (D-01, D-03;
+            # quick task 260819-gv9 — replaces the former inline block). Pass the
+            # precomputed .asof() scalars so the backtest keeps its O(log n) fast
+            # path — entry_features falls back to a rolling recompute only when
+            # the scalar is absent, which never happens here (prior_investigation 2).
+            _vol_sma50_t = float(precomp_t.vol_sma50.asof(as_of_ts)) if precomp_t is not None else None
+            _high_52w_t = float(precomp_t.high_52w.asof(as_of_ts)) if precomp_t is not None else None
+            _entry = entry_features(result, daily_sliced, vol_sma50=_vol_sma50_t, high_52w=_high_52w_t)
             signals.append(Signal(
                 date=d,
                 ticker=ticker,
@@ -471,10 +456,10 @@ def generate_signals(
                 industry_momentum=_strength.get("industry_mom_20d"),
                 industry_above_50ma=_strength.get("industry_above_50ma"),
                 industry_rank_pct=_rank_pct,
-                rsi_entry=_rsi,
-                rvol=_rvol,
-                pullback_depth_pct=_pullback_depth,
-                pct_to_52w_high=_pct_high,
+                rsi_entry=_entry["rsi_entry"],
+                rvol=_entry["rvol"],
+                pullback_depth_pct=_entry["pullback_depth_pct"],
+                pct_to_52w_high=_entry["pct_to_52w_high"],
             ))
 
     print()  # newline after progress counter

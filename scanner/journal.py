@@ -8,12 +8,31 @@ See CLAUDE.md EPIC E9.2-E9.5.
 from __future__ import annotations
 
 import json
+import math
 from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
 
 from scanner import store_db
 from scanner.simulate import Signal, simulate_trades
+
+
+def _coerce_numeric(x) -> Optional[float]:
+    """None or non-finite float -> None; otherwise a plain float.
+
+    NaN reaches this boundary from the pandas concat/to_dict("records") round-trip
+    in scan.py — not from entry_features(), which already returns None never NaN
+    (prior_investigation 5). SQLite happens to bind a NaN as NULL, but this
+    function makes that explicit rather than relying on the implementation detail
+    (T-gv9-07, quick task 260819-gv9).
+    """
+    if x is None:
+        return None
+    try:
+        xf = float(x)
+    except (TypeError, ValueError):
+        return None
+    return xf if math.isfinite(xf) else None
 
 
 # ── E9.2 — live signal writer ─────────────────────────────────────────────────
@@ -69,6 +88,10 @@ def write_live_signals(
             "industry_momentum": row.get("industry_momentum"),
             "industry_above_50ma": row.get("industry_above_50ma"),
             "industry_rank_pct": row.get("industry_rank_pct"),
+            "rsi_entry": _coerce_numeric(row.get("entry_rsi")),
+            "rvol": _coerce_numeric(row.get("entry_rvol")),
+            "pullback_depth_pct": _coerce_numeric(row.get("entry_pullback_depth_pct")),
+            "pct_to_52w_high": _coerce_numeric(row.get("entry_pct_to_52w_high")),
         })
     n = store_db.insert_signals_batch(conn, sigs)
     conn.close()
@@ -311,6 +334,10 @@ def write_backtest_to_db(
             "industry_momentum": s.industry_momentum,
             "industry_above_50ma": s.industry_above_50ma,
             "industry_rank_pct": s.industry_rank_pct,
+            "rsi_entry": _coerce_numeric(s.rsi_entry),
+            "rvol": _coerce_numeric(s.rvol),
+            "pullback_depth_pct": _coerce_numeric(s.pullback_depth_pct),
+            "pct_to_52w_high": _coerce_numeric(s.pct_to_52w_high),
         })
     store_db.insert_signals_batch(conn, sig_dicts)
 
