@@ -105,13 +105,23 @@ def test_stop_formula_pullback():
 
 
 def test_stop_formula_breakout():
-    """Breakout stop = high_20_prev - 0.5 * ATR14."""
+    """Breakout stop = high_20_prev - 0.5 * ATR14, then widened by the
+    0.5x ATR minimum stop-distance floor (quick-260819-g5h).
+
+    On this fixture the raw formula produces a stop distance of 0.243x ATR
+    (measured during planning: price 46.1913, ATR 0.3764, raw stop 46.10),
+    so the floor binds and the raw formula's value is NOT the final stop.
+    The raw formula is kept visible below so the underlying rule stays
+    readable; `apply_min_stop_floor` is applied on top to get the pinned,
+    exact expected value (46.0, not a tolerance/inequality).
+    """
     df = _make_df()
     from ta.volatility import AverageTrueRange
+    from scanner.targets import apply_min_stop_floor
     atr_val = float(AverageTrueRange(df["High"], df["Low"], df["Close"], 14)
                     .average_true_range().iloc[-1])
     high_20_prev = float(df["High"].iloc[-21:-1].max())
-    expected_stop = round(high_20_prev - 0.5 * atr_val, 2)
+    raw_stop = round(high_20_prev - 0.5 * atr_val, 2)
 
     from datetime import date
     from scanner.core import EvalContext, QualityInfo
@@ -122,6 +132,8 @@ def test_stop_formula_breakout():
     from scanner.strategies.breakout import evaluate as br_eval
     res = br_eval("TEST", df, ctx)
     enriched = attach_risk(res, df)
+    expected_stop = apply_min_stop_floor(raw_stop, res.close, atr_val)
+    assert expected_stop == 46.0  # pin the exact floored value, not the raw formula
     assert enriched.suggested_stop == expected_stop
 
 
