@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-07-09)
 Phase: Milestone v1.1 complete
 Plan: —
 Status: Awaiting next milestone
-Last activity: 2026-07-12 — Milestone v1.1 completed and archived
+Last activity: 2026-08-19 — Completed quick task 260819-g5h: minimum stop-distance floor (0.5x ATR) in targets.py
 
 ## Performance Metrics
 
@@ -80,6 +80,7 @@ None.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260712-h7l | Fix Unicode arrow crash (UnicodeEncodeError on cp1252) in --output/--csv confirmation prints in seasonality_by_week.py and scan.py; add non-capsys regression test | 2026-07-12 | 8661496 | [260712-h7l-fix-unicode-arrow-crash-unicodeencodeerr](./quick/260712-h7l-fix-unicode-arrow-crash-unicodeencodeerr/) |
+| 260819-g5h | Add 0.5x ATR minimum stop-distance floor to attach_risk (CHANGES TRADING LOGIC — approved 2026-08-19); stops may only widen, never tighten; fixes degenerate near-zero risk-per-share corrupting all R-multiple metrics | 2026-08-19 | f3596ae | [260819-g5h-add-minimum-stop-distance-floor-to-targe](./quick/260819-g5h-add-minimum-stop-distance-floor-to-targe/) |
 
 ## Session Continuity
 
