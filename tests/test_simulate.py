@@ -19,6 +19,7 @@ import pandas as pd
 import pytest
 
 from scanner.simulate import Signal, Trade, simulate_trades
+from scanner.targets import MIN_STOP_ATR_MULT, apply_min_stop_floor
 
 
 # ── shared helpers ────────────────────────────────────────────────────────────
@@ -483,3 +484,225 @@ def test_near_miss_failed_gates_preserved():
     [trade] = simulate_trades([sig], _provider({"TEST": bars}))
     assert trade.qualified is False
     assert trade.failed_gates == ["RSI in range", "Volume contraction"]
+
+
+# ── quick-260819-ko0 — entry-side stop floor regression block ────────────────
+#
+# All fixtures below use a signal geometry chosen to sit deep inside the
+# sub-0.5x-ATR band: published stop 99.90, entry open 100.0, ATR 2.0. That
+# gives a published risk of 0.10 against a 2.0 ATR (0.05x ATR) — squarely
+# inside the collapsed-denominator band this task fixes. The effective stop
+# apply_min_stop_floor(99.90, 100.0, 2.0) returns is 98.99 (floors one cent
+# beyond the pure 0.5x ATR level of 99.00 — see targets.py), giving a
+# widened risk of 1.01. Expected values are always derived from the helper
+# or asserted as inequalities — never hardcoded as entry_px - 0.5 * atr.
+
+def _collapsed_signal(
+    ticker="TEST",
+    sig_date=date(2026, 1, 2),
+    stop=99.90,
+    target=110.0,
+    atr=2.0,
+    entry_open=100.0,
+) -> Signal:
+    return Signal(
+        date=sig_date,
+        ticker=ticker,
+        strategy="pullback",
+        score=60.0,
+        confidence="MEDIUM",
+        stop=stop,
+        target=target,
+        atr=atr,
+        qualified=True,
+        close=entry_open,
+    )
+
+
+def test_ko0_stop_hit_detection_moves_with_widened_stop():
+    """D-02 core: a low between the effective and published stop must NOT
+    stop the trade out. On the pre-change code (stop_hit = low <= sig.stop)
+    this same fixture (low=99.5 <= published 99.90) stops out; a passing
+    assertion here is the proof the widened stop is a REAL stop, not just a
+    wider denominator."""
+    sig = _collapsed_signal()
+    eff = apply_min_stop_floor(sig.stop, 100.0, sig.atr)
+    assert 99.5 > eff  # low sits strictly above the effective stop
+    bars = _bars(
+        [date(2026, 1, 2), date(2026, 1, 5)],
+        opens=[100.0, 100.0],
+        highs=[100.5, 100.5],
+        lows=[99.6, 99.5],
+        closes=[100.0, 100.0],
+    )
+    [trade] = simulate_trades([sig], _provider({"TEST": bars}))
+    assert trade.exit_reason != "stop"
+
+
+def test_ko0_exit_price_and_denominator_agree():
+    """D-02: exiting at the tighter published stop while dividing by the
+    wider effective risk would fabricate an improvement that never
+    happened. r_multiple staying exactly -1.0 while exit_px equals the
+    effective (not published) stop is the invariant that makes that fake
+    impossible."""
+    sig = _collapsed_signal()
+    eff = apply_min_stop_floor(sig.stop, 100.0, sig.atr)
+    bars = _bars(
+        [date(2026, 1, 2), date(2026, 1, 5)],
+        opens=[100.0, 100.0],
+        highs=[100.5, 100.5],
+        lows=[99.6, 98.0],
+        closes=[100.0, 98.5],
+    )
+    [trade] = simulate_trades([sig], _provider({"TEST": bars}))
+    assert trade.exit_reason == "stop"
+    assert trade.exit_px == pytest.approx(eff)
+    assert trade.exit_px != pytest.approx(sig.stop)
+    assert trade.r_multiple == pytest.approx(-1.0)
+
+
+def test_ko0_r_compression_sanity_demonstration():
+    """Unit-level stand-in for the CONTEXT.md sanity target (max R falling
+    from 56.0 to roughly 9, |R| > 10 going to about 0), measured on
+    synthetic bars so no backtest run is required. Sanity check, not a
+    tuning target: on the pre-change code this fixture scores roughly
+    100.0 R (risk 0.10); after the fix it scores roughly 9.9 (risk 1.01)."""
+    sig = _collapsed_signal()
+    bars = _bars(
+        [date(2026, 1, 2), date(2026, 1, 5), date(2026, 1, 6)],
+        opens=[100.0, 100.0, 100.0],
+        highs=[100.5, 100.5, 111.0],
+        lows=[99.6, 99.6, 99.6],
+        closes=[100.0, 100.0, 110.0],
+    )
+    [trade] = simulate_trades([sig], _provider({"TEST": bars}))
+    assert trade.exit_reason == "target"
+    assert trade.r_multiple == pytest.approx(9.9, abs=0.05)
+    assert trade.r_multiple < 11
+
+
+def test_ko0_widened_stop_does_not_rescue_gap_skip_down():
+    """D-03: entry open 99.5 sits at/below the published stop 99.90 but
+    above the effective stop 98.99. Widening before the guard (instead of
+    after) would convert this into a tradeable trade — the specific
+    scope-expansion bug the guard placement exists to prevent."""
+    sig = _collapsed_signal()
+    eff = apply_min_stop_floor(sig.stop, 99.5, sig.atr)
+    assert eff < 99.5 <= sig.stop  # confirms the fixture sits in the gap band
+    bars = _bars(
+        [date(2026, 1, 2), date(2026, 1, 5)],
+        opens=[100.0, 99.5],
+        highs=[100.5, 100.0],
+        lows=[99.6, 99.0],
+        closes=[100.0, 99.5],
+    )
+    [trade] = simulate_trades([sig], _provider({"TEST": bars}))
+    assert trade.exit_reason == "gap_skip_down"
+    assert trade.r_multiple is None
+    assert trade.flags.get("skipped_gap") is True
+
+
+def test_ko0_gap_skip_up_untouched():
+    """No stop value participates in gap_skip_up (D-03) — unaffected by
+    this change."""
+    sig = _collapsed_signal()
+    bars = _bars(
+        [date(2026, 1, 2), date(2026, 1, 5)],
+        opens=[100.0, 111.0],
+        highs=[100.5, 112.0],
+        lows=[99.6, 110.0],
+        closes=[100.0, 111.0],
+    )
+    [trade] = simulate_trades([sig], _provider({"TEST": bars}))
+    assert trade.exit_reason == "gap_skip_up"
+    assert trade.r_multiple is None
+
+
+def test_ko0_mae_mfe_and_post_stop_shadow_use_widened_risk():
+    """mae_r, mfe_r, and post_stop_mfe_r all inherit through `risk` rather
+    than through a separate edit — this test is what would catch the
+    denominator silently reverting to the published stop."""
+    sig = _collapsed_signal()
+    eff = apply_min_stop_floor(sig.stop, 100.0, sig.atr)
+    risk = 100.0 - eff
+    bars = _bars(
+        [date(2026, 1, 2), date(2026, 1, 5), date(2026, 1, 6)],
+        opens=[100.0, 100.0, 100.0],
+        highs=[100.5, 100.5, 103.0],
+        lows=[99.6, 98.0, 99.0],
+        closes=[100.0, 98.5, 102.0],
+    )
+    [trade] = simulate_trades([sig], _provider({"TEST": bars}))
+    assert trade.exit_reason == "stop"
+    assert trade.mae_r == pytest.approx((98.0 - 100.0) / risk)
+    assert trade.mfe_r == pytest.approx((100.5 - 100.0) / risk)
+    assert trade.post_stop_reached_target is False
+    assert trade.post_stop_mfe_r == pytest.approx((103.0 - 100.0) / risk)
+
+
+def test_ko0_never_tightens_existing_geometry_byte_identical():
+    """Planning measurement: the standard fixture (published stop 90.0,
+    entry open 100.0, ATR 1.0) has a floor candidate of 99.50, so `min`
+    keeps 90.0 unchanged — the floor cannot bind on any pre-existing
+    fixture. exit_px, r_multiple, mae_r, and mfe_r are byte-identical to
+    the pre-change suite's own assertions."""
+    sig = _signal(sig_date=date(2026, 1, 2), stop=90.0, target=110.0)
+    eff = apply_min_stop_floor(sig.stop, 100.0, sig.atr)
+    assert eff == pytest.approx(90.0)  # floor does not bind
+    bars = _bars(
+        [date(2026, 1, 2), date(2026, 1, 5), date(2026, 1, 6)],
+        opens=[100.0, 100.0, 100.0],
+        highs=[100.5, 101.0, 100.0],
+        lows=[99.5, 99.0, 89.0],
+        closes=[100.0, 100.5, 89.5],
+    )
+    [trade] = simulate_trades([sig], _provider({"TEST": bars}))
+    assert trade.exit_reason == "stop"
+    assert trade.exit_px == pytest.approx(90.0)
+    assert trade.r_multiple == pytest.approx(-1.0)
+    assert trade.mae_r == pytest.approx(-1.1)
+    assert trade.mfe_r == pytest.approx(0.1)
+
+
+@pytest.mark.parametrize("bad_atr", [0.0, -1.0, float("nan"), None])
+def test_ko0_degenerate_atr_leaves_stop_unchanged(bad_atr):
+    """scanner/backtest.py populates Signal.atr as `result.atr or 0.0`, so
+    0.0 is a live production value, not a hypothetical. Degenerate ATR must
+    leave the stop unchanged, raise nothing, and never yield a stop at or
+    above entry."""
+    sig = _collapsed_signal(atr=bad_atr)
+    bars = _bars(
+        [date(2026, 1, 2), date(2026, 1, 5)],
+        opens=[100.0, 100.0],
+        highs=[100.5, 100.5],
+        lows=[99.6, 99.0],
+        closes=[100.0, 99.5],
+    )
+    [trade] = simulate_trades([sig], _provider({"TEST": bars}))
+    assert trade.exit_reason == "stop"
+    assert trade.exit_px == pytest.approx(99.90)  # unchanged published stop
+    assert trade.r_multiple == pytest.approx(-1.0)
+    assert trade.exit_px < 100.0  # stop stayed strictly below entry
+
+
+@pytest.mark.parametrize("atr", [0.1, 1.0, 2.0, 5.0])
+def test_ko0_reuse_is_behavioral_not_incidental(atr):
+    """Pins that simulate uses the SAME house rule as the close side rather
+    than a divergent local constant: the risk implied by the simulated
+    trade matches apply_min_stop_floor's output directly, and satisfies the
+    MIN_STOP_ATR_MULT invariant whenever the floor binds."""
+    sig = _collapsed_signal(atr=atr)
+    expected_stop = apply_min_stop_floor(sig.stop, 100.0, atr)
+    bars = _bars(
+        [date(2026, 1, 2), date(2026, 1, 5)],
+        opens=[100.0, 100.0],
+        highs=[100.5, 100.5],
+        lows=[99.6, 90.0],  # far below any possible effective stop
+        closes=[100.0, 92.0],
+    )
+    [trade] = simulate_trades([sig], _provider({"TEST": bars}))
+    assert trade.exit_reason == "stop"
+    assert trade.exit_px == pytest.approx(expected_stop)
+    implied_risk = 100.0 - trade.exit_px
+    if expected_stop < sig.stop:  # floor bound
+        assert implied_risk >= MIN_STOP_ATR_MULT * atr - 1e-6
