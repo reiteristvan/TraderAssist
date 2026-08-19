@@ -95,9 +95,22 @@ outcome_checked_at, entry_px, exit_px, exit_reason, r_multiple, holding_days, fl
 | Volume baseline (breakout) | SMA50 | breakout_filter wins over swing_scanner (SMA20) |
 | Minimum history | 220 rows | consistent across both strategies |
 | Stop rules | Pullback: EMA20−ATR; Breakout: high20−0.5×ATR | ported from swing_scanner |
+| Min stop-risk floor (close side) | `scanner/targets.py::apply_min_stop_floor` widens the published stop so `close − stop >= MIN_STOP_ATR_MULT × ATR` | quick-260819-g5h, approved 2026-08-19; makes the published stop executable at signal time |
+| Min stop-risk floor (entry side) | `scanner/simulate.py::simulate_trades` re-applies the SAME `apply_min_stop_floor` helper against the entry open (next-open price), before computing risk; the resulting `effective_stop` drives stop-hit detection, the stop-out exit price, and every R metric (r_multiple, mae_r, mfe_r, target_r, post_stop_mfe_r) | quick-260819-ko0, approved 2026-08-19; an adverse overnight gap can re-collapse the risk denominator even after the close-side floor, so it must be re-applied at entry |
+| Min stop-risk floor multiplier | `MIN_STOP_ATR_MULT = 0.5` lives in exactly one place (`scanner/targets.py`) and is reused by both floor applications — one house rule, not two independently-tuned constants | chosen for execution realism (a stop inside half an ATR can't survive normal intraday noise), NOT fitted to backtest expectancy; do not tune |
 | Market regime | display + confidence input only — NOT a gate | |
 | DB | SQLite (`data/scanner.db`), all SQL in `store_db.py` | swappable to Postgres by changing one module |
 | Sizing | risk-based: `floor((account × risk%) / (entry − stop))` | replaces fixed $650 |
+
+**Published-stop vs exit-price divergence (documented consequence of quick-260819-ko0):**
+The `signals.stop` DB column intentionally keeps the published close-based stop — no new
+column was added to record the entry-side widening (declined by design). For a stop-out trade,
+`exit_px` is the entry-widened `effective_stop`, which can differ from `signals.stop`. For
+roughly 14% of trades (measured on backtest run `038a385_2021-01-01_20260819_142048`) these two
+values diverge, so `(entry_px − stop) / atr` computed directly from the raw `signals` columns
+will still read below 0.5 even though the trade was simulated against a wider stop. **This is
+expected behavior, not a bug.** The authoritative risk denominator for any trade is the one
+implied by `exit_px` on a stop-out (`entry_px − exit_px`), not `entry_px − signals.stop`.
 
 ## Open item — E3.4 (deferred)
 
