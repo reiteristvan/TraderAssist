@@ -10,6 +10,7 @@ import json
 import sqlite3
 from pathlib import Path
 from typing import Any, Optional
+from urllib.parse import quote
 
 _DEFAULT_DB = Path("data/scanner.db")
 _SCHEMA_VERSION = 10
@@ -183,6 +184,82 @@ def migrate(db_path: Optional[Path] = None, conn: Optional[sqlite3.Connection] =
 def get_schema_version(conn: sqlite3.Connection) -> int:
     row = conn.execute("SELECT version FROM schema_version").fetchone()
     return int(row["version"]) if row else 0
+
+
+def get_readonly_connection(db_path: Optional[Path] = None) -> sqlite3.Connection:
+    """Open data/scanner.db strictly read-only via the SQLite `mode=ro` URI.
+
+    Raises FileNotFoundError naming the path when the file does not exist —
+    never lets sqlite3's opaque "unable to open database file" surface, and
+    never creates the file (unlike get_connection's mkdir-then-connect). No
+    write-affecting PRAGMA is set and migrate() is never called here. Callers
+    doing analysis-only reads (e.g. scanner/winner_loser.py) use this instead
+    of get_connection so a bug can never write to the live DB.
+    """
+    path = Path(db_path) if db_path else _DEFAULT_DB
+    if not path.exists():
+        raise FileNotFoundError(f"Database file not found: {path}")
+    # quote(..., safe="/:") lets a Windows drive letter's colon and the path's
+    # forward slashes survive un-escaped while still neutralizing a stray '?'
+    # or '#' in the path that would otherwise corrupt the URI's query string.
+    uri = f"file:{quote(path.as_posix(), safe='/:')}?mode=ro"
+    conn = sqlite3.connect(uri, uri=True)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+# The diagnostic's full candidate feature/outcome column list. Probed against
+# PRAGMA table_info(signals) at query time (see get_analysis_signals) rather
+# than assumed present — this is what keeps the tool alive against a database
+# where the schema-v10 migration (rsi_entry/rvol/pullback_depth_pct/
+# pct_to_52w_high) has not yet lazily fired.
+_ANALYSIS_SIGNAL_COLUMNS = (
+    "date", "ticker", "r_multiple", "score", "confidence", "atr", "close",
+    "target_r", "target_atr", "industry_momentum", "industry_above_50ma",
+    "industry_rank_pct", "rsi_entry", "rvol", "pullback_depth_pct",
+    "pct_to_52w_high",
+)
+
+
+def get_analysis_signals(
+    conn: sqlite3.Connection, run_id: str, strategy: Optional[str] = None
+) -> tuple[list[dict], set[str]]:
+    """Read-only query behind the winner/loser diagnostic (scanner/winner_loser.py).
+
+    Probes the live schema with PRAGMA table_info(signals) and selects only
+    the intersection of _ANALYSIS_SIGNAL_COLUMNS with columns actually
+    present in this database. Every returned dict has every column in
+    _ANALYSIS_SIGNAL_COLUMNS as a key regardless of whether the underlying
+    column exists, so callers see one uniform record shape — a value of None
+    can mean either "column absent from this schema" or "value is NULL"; the
+    second return element (the set of column names absent from this schema)
+    is how a caller tells those two apart rather than guessing.
+
+    run_id and strategy are always bound as parameters — the only identifier
+    ever interpolated into the SQL text is a column name drawn from this
+    module-level intersection, never from caller input.
+    """
+    table_cols = {row["name"] for row in conn.execute("PRAGMA table_info(signals)")}
+    present = [c for c in _ANALYSIS_SIGNAL_COLUMNS if c in table_cols]
+    absent = set(_ANALYSIS_SIGNAL_COLUMNS) - table_cols
+
+    select_list = ", ".join(present)
+    sql = (
+        f"SELECT {select_list} FROM signals "
+        "WHERE run_id = ? AND qualified = 1 AND r_multiple IS NOT NULL"
+    )
+    params: list[Any] = [run_id]
+    if strategy is not None:
+        sql += " AND strategy = ?"
+        params.append(strategy)
+    sql += " ORDER BY date"
+
+    rows = conn.execute(sql, params).fetchall()
+    records = [
+        {col: (row[col] if col in present else None) for col in _ANALYSIS_SIGNAL_COLUMNS}
+        for row in rows
+    ]
+    return records, absent
 
 
 # ── runs ──────────────────────────────────────────────────────────────────────
