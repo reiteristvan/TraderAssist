@@ -75,11 +75,11 @@ def test_migrate_idempotent(tmp_path):
     conn = store_db.get_connection(path)
     ver = store_db.get_schema_version(conn)
     conn.close()
-    assert ver == 9
+    assert ver == 10
 
 
 def test_migrate_schema_version_present(db):
-    assert store_db.get_schema_version(db) == 9
+    assert store_db.get_schema_version(db) == 10
 
 
 # ── E9.1 AC3 — round-trip signal ─────────────────────────────────────────────
@@ -253,7 +253,7 @@ def test_migrate_v1_to_current(tmp_path):
     # migrate() should upgrade to current version
     store_db.migrate(db_path=path)
     conn2 = store_db.get_connection(path)
-    assert store_db.get_schema_version(conn2) == 9
+    assert store_db.get_schema_version(conn2) == 10
     # Columns added in v2/v3 must exist
     cols = [r[1] for r in conn2.execute("PRAGMA table_info(signals)").fetchall()]
     assert "gate_detail_json" in cols
@@ -273,6 +273,11 @@ def test_migrate_v1_to_current(tmp_path):
     assert "industry_momentum" in cols
     assert "industry_above_50ma" in cols
     assert "industry_rank_pct" in cols
+    # rsi_entry/rvol/pullback_depth_pct/pct_to_52w_high added in v10 must exist
+    assert "rsi_entry" in cols
+    assert "rvol" in cols
+    assert "pullback_depth_pct" in cols
+    assert "pct_to_52w_high" in cols
     # bars table added in v5 must exist
     tables = [r[0] for r in conn2.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
     assert "bars" in tables
@@ -455,3 +460,133 @@ def test_industry_momentum_null_round_trip(db):
     assert row["industry_momentum"] is None
     assert row["industry_group"] is None
     assert row["industry_rank_pct"] is None
+
+
+# ── Quick task 260819-gv9 — v10 entry-time feature columns ────────────────────
+
+_ENTRY_COLS = ("rsi_entry", "rvol", "pullback_depth_pct", "pct_to_52w_high")
+
+
+def test_schema_version_10_after_migrate(tmp_path):
+    """schema_version reads 10 after migrate() on a fresh DB (D-02)."""
+    path = tmp_path / "v10.db"
+    store_db.migrate(db_path=path)
+    conn = store_db.get_connection(path)
+    assert store_db.get_schema_version(conn) == 10
+    conn.close()
+
+
+def test_signals_table_has_v10_columns(db):
+    """PRAGMA table_info(signals) reports all four new REAL columns."""
+    cols = {r[1] for r in db.execute("PRAGMA table_info(signals)").fetchall()}
+    assert {"rsi_entry", "rvol", "pullback_depth_pct", "pct_to_52w_high"} <= cols
+
+
+def test_insert_signal_round_trips_entry_features(db):
+    """insert_signal() with the four keys present round-trips all four values unchanged.
+
+    Asserted independently of insert_signals_batch — a regression in either
+    function must fail on its own (T-gv9-03).
+    """
+    sig = {
+        **_sample_signal(ticker="ENTRY1"),
+        "rsi_entry": 48.0,
+        "rvol": 1.5,
+        "pullback_depth_pct": 5.17,
+        "pct_to_52w_high": 20.0,
+    }
+    store_db.insert_signal(db, sig)
+    row = db.execute("SELECT * FROM signals WHERE ticker = 'ENTRY1'").fetchone()
+    assert float(row["rsi_entry"]) == pytest.approx(48.0)
+    assert float(row["rvol"]) == pytest.approx(1.5)
+    assert float(row["pullback_depth_pct"]) == pytest.approx(5.17)
+    assert float(row["pct_to_52w_high"]) == pytest.approx(20.0)
+
+
+def test_insert_signals_batch_round_trips_entry_features(db):
+    """insert_signals_batch() with the four keys present round-trips all four values
+    unchanged — asserted independently of insert_signal (T-gv9-03)."""
+    sigs = [{
+        **_sample_signal(ticker="ENTRY2"),
+        "rsi_entry": 61.0,
+        "rvol": 3.48,
+        "pullback_depth_pct": None,
+        "pct_to_52w_high": 0.49,
+    }]
+    n = store_db.insert_signals_batch(db, sigs)
+    assert n == 1
+    row = db.execute("SELECT * FROM signals WHERE ticker = 'ENTRY2'").fetchone()
+    assert float(row["rsi_entry"]) == pytest.approx(61.0)
+    assert float(row["rvol"]) == pytest.approx(3.48)
+    assert row["pullback_depth_pct"] is None
+    assert float(row["pct_to_52w_high"]) == pytest.approx(0.49)
+
+
+def test_insert_signal_omitting_entry_features_yields_null(db):
+    """A signal dict that omits all four keys still inserts and yields NULL columns
+    (the _sample_signal compatibility contract — prior_investigation 8)."""
+    store_db.insert_signal(db, _sample_signal(ticker="ENTRY3"))
+    row = db.execute("SELECT * FROM signals WHERE ticker = 'ENTRY3'").fetchone()
+    for col in _ENTRY_COLS:
+        assert row[col] is None
+
+
+def test_insert_signals_batch_omitting_entry_features_yields_null(db):
+    """Same omit-keys contract for the batch insert path."""
+    n = store_db.insert_signals_batch(db, [_sample_signal(ticker="ENTRY4")])
+    assert n == 1
+    row = db.execute("SELECT * FROM signals WHERE ticker = 'ENTRY4'").fetchone()
+    for col in _ENTRY_COLS:
+        assert row[col] is None
+
+
+def test_migrate_v9_to_v10_idempotent_preserves_existing_row(tmp_path):
+    """Simulated upgrade: hand-build a v9 signals table (no v10 columns), run
+    migrate() TWICE, and assert no error, version 10, the four columns present,
+    and the pre-existing row's other columns unchanged with the four new ones NULL."""
+    import sqlite3 as _sqlite3
+    path = tmp_path / "v9.db"
+    conn = _sqlite3.connect(str(path))
+    conn.execute("CREATE TABLE schema_version (version INTEGER NOT NULL)")
+    conn.execute("""CREATE TABLE signals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL, ticker TEXT NOT NULL, strategy TEXT NOT NULL,
+        source TEXT NOT NULL, run_id TEXT NOT NULL,
+        score REAL, confidence TEXT, stop REAL, target REAL, atr REAL,
+        qualified INTEGER NOT NULL DEFAULT 1, failed_gates TEXT, close REAL,
+        gate_detail_json TEXT, ath_zone TEXT,
+        outcome_checked_at TEXT, entry_px REAL, exit_px REAL,
+        exit_reason TEXT, r_multiple REAL, holding_days INTEGER, flags TEXT,
+        notes TEXT, target_r REAL, target_atr REAL,
+        mae_r REAL, mfe_r REAL, post_stop_reached_target INTEGER, post_stop_mfe_r REAL,
+        industry_group TEXT, industry_momentum REAL, industry_above_50ma INTEGER,
+        industry_rank_pct REAL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE (date, ticker, strategy, source, run_id)
+    )""")
+    conn.execute("INSERT INTO schema_version VALUES (9)")
+    conn.execute(
+        """INSERT INTO signals (date, ticker, strategy, source, run_id, score, close)
+           VALUES ('2026-01-05', 'PRE', 'pullback', 'live', '2026-01-05', 55.0, 100.0)"""
+    )
+    conn.commit()
+    conn.close()
+
+    store_db.migrate(db_path=path)
+    store_db.migrate(db_path=path)  # idempotent — second run must not raise/duplicate
+
+    conn2 = store_db.get_connection(path)
+    assert store_db.get_schema_version(conn2) == 10
+    cols = {r[1] for r in conn2.execute("PRAGMA table_info(signals)").fetchall()}
+    assert {"rsi_entry", "rvol", "pullback_depth_pct", "pct_to_52w_high"} <= cols
+
+    row = conn2.execute("SELECT * FROM signals WHERE ticker = 'PRE'").fetchone()
+    assert row is not None
+    assert float(row["score"]) == pytest.approx(55.0)
+    assert float(row["close"]) == pytest.approx(100.0)
+    for col in _ENTRY_COLS:
+        assert row[col] is None
+
+    count = conn2.execute("SELECT COUNT(*) FROM signals").fetchone()[0]
+    assert count == 1
+    conn2.close()
