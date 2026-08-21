@@ -26,6 +26,17 @@ function resolvedDbPath() {
 }
 
 /**
+ * Logs a swallowed DB-open failure to the server console before the caller
+ * returns null. Keeps the failure attributable to the driver/loader rather
+ * than misreported as absent data — the exact bug this helper exists to fix.
+ * Never call this above the fs.existsSync guard: the absent-file path must
+ * stay silent.
+ */
+function _logDbOpenFailure(fnName, dbPath, err) {
+  console.error(`[db] ${fnName} failed to open database at ${dbPath} — driver/open error:`, err);
+}
+
+/**
  * Returns an open read-only Database, or null if the file is absent/unreadable.
  * Caches the connection once successfully opened.
  */
@@ -40,7 +51,8 @@ function getDb() {
   try {
     _db = new Database(dbPath, { readonly: true, fileMustExist: true });
     return _db;
-  } catch (_err) {
+  } catch (err) {
+    _logDbOpenFailure('getDb', dbPath, err);
     return null;
   }
 }
@@ -57,7 +69,8 @@ function getWriteDb() {
     _writeDb = new Database(dbPath, { fileMustExist: true });
     _applyMigrations(_writeDb);
     return _writeDb;
-  } catch (_) {
+  } catch (err) {
+    _logDbOpenFailure('getWriteDb', dbPath, err);
     return null;
   }
 }
