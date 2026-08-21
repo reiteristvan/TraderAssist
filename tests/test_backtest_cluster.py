@@ -250,7 +250,7 @@ def test_generate_signals_cluster_suppression_end_to_end(monkeypatch):
         return {"T1": daily, "SPY": spy}.get(t)
 
     common_kwargs = dict(
-        universe=["T1", "SPY"],
+        universe=["T1"],
         start=start,
         end=end,
         strategy="pullback",

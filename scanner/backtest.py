@@ -178,6 +178,57 @@ def _make_context_from_frames(
     )
 
 
+# ── Cluster suppression (backtest-only, opt-in — quick task 260821-jw1) ───────
+
+@dataclasses.dataclass
+class ClusterSuppressor:
+    """Drop the Nth-and-later qualified signal for a ticker inside a trailing
+    calendar-day window. Backtest-only hypothesis-test tool — NOT used by the
+    live scan path. Default-constructed instance is inert (disabled).
+
+    Locked semantics (CONTEXT.md D1/D2/D3, quick task 260821-jw1):
+    - D1 / D-01 — qualified-only: only `qualified=True` candidates increment
+      the window and only they can be suppressed; near-misses pass through
+      untouched (never counted, never suppressed).
+    - D2 / D-02 — a suppressed candidate's date STILL gets recorded into the
+      window, so the whole cluster stays muted (not a leaky bucket).
+    - D3 / D-03 — `limit=None` (or <= 0) is the disabled path; default OFF.
+    """
+    limit: Optional[int] = None
+    window: int = 10
+    suppressed: int = 0
+    _dates_by_ticker: dict[str, list[date]] = dataclasses.field(default_factory=dict)
+
+    @property
+    def enabled(self) -> bool:
+        return self.limit is not None and self.limit > 0
+
+    def admit(self, ticker: str, d: date, qualified: bool) -> bool:
+        """Return True when the candidate should be emitted."""
+        if not self.enabled:
+            return True
+        if not qualified:
+            return True
+
+        prior = self._dates_by_ticker.setdefault(ticker, [])
+        count = 0
+        kept: list[date] = []
+        for p in prior:
+            delta = (d - p).days
+            if delta > self.window:
+                continue  # older than the window — pure memory pruning
+            if delta > 0:
+                count += 1
+            kept.append(p)
+        kept.append(d)  # D2 / D-02 — record unconditionally, before returning
+        self._dates_by_ticker[ticker] = kept
+
+        if count >= self.limit:
+            self.suppressed += 1
+            return False
+        return True
+
+
 # ── Signal generation loop ─────────────────────────────────────────────────────
 
 def generate_signals(
@@ -187,6 +238,9 @@ def generate_signals(
     strategy: str,
     capture_near_misses: int = 1,
     earnings_gate: bool = True,
+    cluster_limit: Optional[int] = None,
+    cluster_window: int = 10,
+    cluster_stats: Optional[dict] = None,
     _bars_loader: Optional[Callable[[str], Optional[pd.DataFrame]]] = None,
     _market_loader: Optional[Callable[[], dict[str, pd.DataFrame]]] = None,
     _quality_loader: Optional[Callable[[str], QualityInfo]] = None,
@@ -208,10 +262,28 @@ def generate_signals(
     earnings_gate:
         When False, days_to_earnings=None is passed to every context
         (equivalent to --earnings-gate off in the backtest CLI).
+    cluster_limit:
+        Backtest-only, opt-in cluster suppression (quick task 260821-jw1):
+        drop the Nth-and-later qualified signal for a ticker inside a
+        trailing `cluster_window` calendar-day window. Default None disables
+        the rule entirely — this is the default OFF path (D3 / D-03).
+    cluster_window:
+        Calendar-day window size used by `cluster_limit`. Ignored when
+        `cluster_limit` is disabled. Default 10.
+    cluster_stats:
+        Optional caller-supplied dict. When provided, populated in place with
+        `cluster_limit`, `cluster_window` and `cluster_suppressed` before
+        every return — including the disabled path and the early-return
+        paths (zero count) — so the caller can read the keys unconditionally.
     _bars_loader, _market_loader, _quality_loader, _earnings_loader:
         Test seams. Default to the real data-store functions.
         The loaders are called ONCE before the loop — never inside it.
     """
+    def _fill_cluster_stats(suppressed_count: int) -> None:
+        if cluster_stats is not None:
+            cluster_stats["cluster_limit"] = cluster_limit
+            cluster_stats["cluster_window"] = cluster_window
+            cluster_stats["cluster_suppressed"] = suppressed_count
     import scanner.strategies.pullback as pb
     import scanner.strategies.breakout as br
     import scanner.targets as _targets
@@ -253,6 +325,7 @@ def generate_signals(
 
     if not bars_by_ticker:
         _log.warning("generate_signals: no bars loaded for any ticker")
+        _fill_cluster_stats(0)
         return []
 
     full_market = _market_loader()
@@ -304,10 +377,12 @@ def generate_signals(
     ]
 
     if not trading_days:
+        _fill_cluster_stats(0)
         return []
 
     n_days = len(trading_days)
     signals: list[Signal] = []
+    cluster_suppressor = ClusterSuppressor(limit=cluster_limit, window=cluster_window)
 
     for day_num, d in enumerate(trading_days):
         print(f"[{day_num + 1}/{n_days}] {d}", end="\r")
@@ -440,6 +515,10 @@ def generate_signals(
             _vol_sma50_t = float(precomp_t.vol_sma50.asof(as_of_ts)) if precomp_t is not None else None
             _high_52w_t = float(precomp_t.high_52w.asof(as_of_ts)) if precomp_t is not None else None
             _entry = entry_features(result, daily_sliced, vol_sma50=_vol_sma50_t, high_52w=_high_52w_t)
+
+            if not cluster_suppressor.admit(ticker, d, result.qualified):
+                continue
+
             signals.append(Signal(
                 date=d,
                 ticker=ticker,
@@ -463,4 +542,5 @@ def generate_signals(
             ))
 
     print()  # newline after progress counter
+    _fill_cluster_stats(cluster_suppressor.suppressed)
     return signals
