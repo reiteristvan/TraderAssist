@@ -340,3 +340,92 @@ def test_render_report_has_cluster_line_when_enabled():
         "cluster_suppressed": 5,
     })
     assert "Cluster suppression: limit=3, window=10d, suppressed=5" in md
+
+
+# ── Default-identity regression (quick task 260821-jw1, Task 3) ──────────────
+
+def _real_strategy_kwargs(daily, market, quality, trading_idx):
+    return dict(
+        universe=["T1"],
+        start=trading_idx[0].date(),
+        end=trading_idx[-1].date(),
+        strategy="pullback",
+        _bars_loader=lambda t: {"T1": daily}.get(t),
+        _market_loader=lambda: market,
+        _quality_loader=lambda t: quality,
+        _earnings_loader=lambda t: [],
+    )
+
+
+def test_default_parity_no_args_vs_explicit_none_vs_never_triggered():
+    """No cluster args, limit=None, and a limit that can never trigger must
+    all produce field-identical signal lists — proving both the disabled path
+    and the never-triggered path are fully inert (T-jw1-01)."""
+    n = 260
+    daily = _trend_bars(n=n)
+    spy = _spy_bars(n=n)
+    market = _market(spy)
+    quality = _quality()
+    trading_idx = daily.index[-10:]
+    kwargs = _real_strategy_kwargs(daily, market, quality, trading_idx)
+
+    run_default = generate_signals(**kwargs)
+    run_explicit_none = generate_signals(**kwargs, cluster_limit=None, cluster_window=10)
+    run_never_triggered = generate_signals(**kwargs, cluster_limit=1000, cluster_window=10)
+
+    def _as_dicts(signals):
+        return [dataclasses.asdict(s) for s in signals]
+
+    assert _as_dicts(run_default) == _as_dicts(run_explicit_none)
+    assert _as_dicts(run_default) == _as_dicts(run_never_triggered)
+
+
+def test_cluster_stats_shape_on_default_run():
+    n = 260
+    daily = _trend_bars(n=n)
+    spy = _spy_bars(n=n)
+    market = _market(spy)
+    quality = _quality()
+    trading_idx = daily.index[-3:]
+    kwargs = _real_strategy_kwargs(daily, market, quality, trading_idx)
+
+    stats: dict = {}
+    generate_signals(**kwargs, cluster_stats=stats)
+    assert stats == {"cluster_limit": None, "cluster_window": 10, "cluster_suppressed": 0}
+
+    # passing no dict at all must not raise
+    generate_signals(**kwargs)
+
+
+def test_cluster_stats_populated_on_early_return_no_bars_loaded():
+    """Empty universe and a loader returning no bars both hit the same
+    'no bars loaded' early return."""
+    for universe in ([], ["T1"]):
+        stats: dict = {}
+        result = generate_signals(
+            universe=universe, start=date(2026, 1, 1), end=date(2026, 1, 5),
+            strategy="pullback",
+            _bars_loader=lambda t: None,
+            _market_loader=lambda: {},
+            _quality_loader=lambda t: QualityInfo(False, None, None, None, None),
+            _earnings_loader=lambda t: [],
+            cluster_stats=stats,
+        )
+        assert result == []
+        assert stats == {"cluster_limit": None, "cluster_window": 10, "cluster_suppressed": 0}
+
+
+def test_cluster_stats_populated_on_early_return_no_trading_days():
+    daily = _trend_bars(n=260)  # ends 2026-06-15
+    stats: dict = {}
+    result = generate_signals(
+        universe=["T1"], start=date(2030, 1, 1), end=date(2030, 1, 5),
+        strategy="pullback",
+        _bars_loader=lambda t: {"T1": daily}.get(t),
+        _market_loader=lambda: {"SPY": daily},
+        _quality_loader=lambda t: QualityInfo(False, None, None, None, None),
+        _earnings_loader=lambda t: [],
+        cluster_stats=stats,
+    )
+    assert result == []
+    assert stats == {"cluster_limit": None, "cluster_window": 10, "cluster_suppressed": 0}
