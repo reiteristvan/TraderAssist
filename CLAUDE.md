@@ -17,7 +17,7 @@ scanner/
   backtest.py         # generate_signals() — historical signal loop
   simulate.py         # simulate_trades() — Signal → Trade
   report.py           # compute_metrics, render_report (E8)
-  store_db.py         # ALL SQL; data/scanner.db; schema v6
+  store_db.py         # ALL SQL; data/scanner.db; schema v10
   journal.py          # write_live_signals, resolve_open_signals, compare_with_backtest
   universe.py         # build_universe, audit_universe, load_universe_file
 scan.py               # CLI: scan | refresh | backtest | journal | universe | worker
@@ -55,13 +55,17 @@ python scan.py journal compare --backtest <run_id>
 python scan.py universe build --index sp500 --out universes/sp500.txt
 python scan.py worker --once
 python winner_loser_split.py --run-id <run_id> --split 2024-01-01   # read-only train/holdout feature diagnostic
+python exit_rule_sweep.py --run-dir runs/<dir> --mode all   # read-only exit-rule sweep (time stop / breakeven / fixed target)
 ```
 
-## DB schema — scanner.db (v6)
+## DB schema — scanner.db (v10)
 
 `signals`: id, date, ticker, strategy, source, run_id, score, confidence, stop, target,
-atr, qualified, failed_gates, close, gate_detail_json, ath_zone, created_at,
-outcome_checked_at, entry_px, exit_px, exit_reason, r_multiple, holding_days, flags, notes.
+atr, qualified, failed_gates, close, gate_detail_json, ath_zone, outcome_checked_at,
+entry_px, exit_px, exit_reason, r_multiple, holding_days, flags, created_at, notes,
+target_r, target_atr, mae_r, mfe_r, post_stop_reached_target, post_stop_mfe_r,
+industry_group, industry_momentum, industry_above_50ma, industry_rank_pct, rsi_entry,
+rvol, pullback_depth_pct, pct_to_52w_high.
 
 `runs`: run_id, kind, strategy, universe, params_json, started_at, finished_at, signal_count.
 
@@ -71,7 +75,7 @@ outcome_checked_at, entry_px, exit_px, exit_reason, r_multiple, holding_days, fl
 
 `bars`: ticker, date, open, high, low, close, volume  ← OHLCV snapshot for chart (E12.7).
 
-`schema_version`: version (current = 6).
+`schema_version`: version (current = 10).
 
 ## Global conventions
 

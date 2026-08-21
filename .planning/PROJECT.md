@@ -97,6 +97,12 @@ Key lessons from prior milestones:
 - Signal key collision risk in dual-strategy backtests: use 3-tuple `(date, ticker, strategy)` for dict keys
 - `np.percentile` (not `np.nanpercentile`) on bootstrap draws silently returns NaN + a false "not significant" for any week absent from even one resampled year — no exception, no warning. Caught by code review, not by the original test suite, since none of the fixtures constructed a week missing from a year. Any future per-week/per-group bootstrap in this codebase should default to `nanpercentile` plus an explicit insufficient-data flag, not bare `percentile`.
 - Non-ASCII characters (e.g. `→`) in `print()` confirmation lines crash with `UnicodeEncodeError` on Windows, where the default console/stream encoding is `cp1252`, not UTF-8 — pytest's `capsys` never catches this because it captures via an in-memory buffer that bypasses real stream encoding. Found in `seasonality_by_week.py` and an identical pre-existing occurrence in `scan.py`; fixed by using ASCII-only output text. Any new CLI confirmation/status print in this codebase should stick to ASCII, and a genuine regression test for stream-encoding bugs needs `subprocess.run(..., env={"PYTHONIOENCODING": "cp1252"})`, not `capsys`.
+- Winsorized vs raw mean R divergence is the fastest tell that a risk denominator is collapsing — check it before trusting any expectancy figure.
+- A stop floor must be applied at BOTH signal close and entry fill; flooring only at close pins a population at the minimum where any adverse gap re-collapses the denominator.
+- Selecting anything (tickers, features, gates, exit parameters) on in-sample performance reproduces the same failure every time — train/holdout separation is mandatory, and most candidates flip sign.
+- At ~3,800 trades with heavy time clustering the baseline CI is ~+-0.2R, roughly 7x the effect sizes being tested — gate and parameter attribution is not resolvable at this sample size. Full evidence: `.planning/research/2026-08-19-signal-quality-investigation.md`.
+- Breakeven stops degrade this strategy at every trigger level tested; its expectancy comes from the ~21% of trades that reach target at ~+2.1R.
+- The resistance-aware target from `compute_targets` beats every fixed R-multiple target tested, on both train and holdout.
 
 ## Constraints
 
