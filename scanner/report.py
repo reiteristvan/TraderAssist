@@ -622,8 +622,15 @@ def render_report(
             f"- Time stop: {run_meta.get('time_stop', '?')} sessions",
             f"- Entry: {run_meta.get('entry', '?')}",
             f"- Git hash: {run_meta.get('git_hash', 'unknown')}",
-            "",
         ]
+        _cluster_limit = run_meta.get("cluster_limit")
+        if _cluster_limit:
+            lines.append(
+                f"- Cluster suppression: limit={_cluster_limit}, "
+                f"window={run_meta.get('cluster_window', '?')}d, "
+                f"suppressed={run_meta.get('cluster_suppressed', 0)}"
+            )
+        lines.append("")
 
     lines += ["## Summary Metrics\n"]
     if metrics["count"] == 0:

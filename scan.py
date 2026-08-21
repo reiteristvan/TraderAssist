@@ -289,6 +289,7 @@ def cmd_backtest(args) -> None:
     earn_gate = (args.earnings_gate == "on")
 
     print(f"Generating signals: {args.strategy}, {len(tickers)} tickers, {start}→{end}")
+    cluster_stats: dict = {}
     signals = generate_signals(
         universe=tickers,
         start=start,
@@ -296,7 +297,11 @@ def cmd_backtest(args) -> None:
         strategy=args.strategy,
         capture_near_misses=int(args.capture_near_misses),
         earnings_gate=earn_gate,
+        cluster_limit=args.cluster_limit,
+        cluster_window=int(args.cluster_window),
+        cluster_stats=cluster_stats,
     )
+    cluster_suppressed = cluster_stats.get("cluster_suppressed", 0)
 
     # Persist signals
     sig_dicts = []
@@ -348,6 +353,9 @@ def cmd_backtest(args) -> None:
         "capture_near_misses": args.capture_near_misses,
         "time_stop": time_stop,
         "entry": args.entry,
+        "cluster_limit": args.cluster_limit,
+        "cluster_window": int(args.cluster_window),
+        "cluster_suppressed": cluster_suppressed,
         "git_hash": git_hash,
         "total_signals": len(signals),
         "qualified_signals": sum(s.qualified for s in signals),
@@ -366,6 +374,9 @@ def cmd_backtest(args) -> None:
     q_note = f" ({q_resolved} resolved, {q_excluded} gap-skip/incomplete)" if q_excluded else f" ({q_resolved} resolved)"
     nm_note = f" ({nm_resolved} resolved, {nm_excluded} gap-skip/incomplete)" if nm_excluded else ""
     print(f"  Trades simulated: {len(q_trades)} qualified{q_note}, {len(nm_trades)} near-miss{nm_note}")
+    if args.cluster_limit is not None and args.cluster_limit > 0:
+        print(f"  Cluster suppression: limit={args.cluster_limit}, "
+              f"window={int(args.cluster_window)}d, suppressed={cluster_suppressed}")
     print(f"  Output → {out_dir}/")
     print("    signals.parquet  trades.parquet  report.md  report.json  run_meta.json")
 
@@ -700,6 +711,12 @@ def build_parser() -> argparse.ArgumentParser:
                       help="Exit after N sessions if neither stop nor target hit (default: 10)")
     bt_p.add_argument("--entry", choices=["next_open", "signal_close"], default="next_open",
                       help="Entry price convention (default: next_open)")
+    bt_p.add_argument("--cluster-limit", type=int, default=None, metavar="N",
+                      help="Backtest-only: drop the Nth-and-later qualified signal for "
+                           "a ticker inside --cluster-window calendar days (default: "
+                           "off — the rule is disabled unless this flag is passed)")
+    bt_p.add_argument("--cluster-window", type=int, default=10, metavar="DAYS",
+                      help="Calendar-day window used by --cluster-limit (default: 10)")
 
     # ── journal ───────────────────────────────────────────────────────────────
     jnl_p = sub.add_parser("journal", help="Live signal journal (resolve, compare)")

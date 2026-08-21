@@ -284,3 +284,59 @@ def test_generate_signals_cluster_suppression_end_to_end(monkeypatch):
            len(baseline_qualified) - len(suppressed_qualified)
     assert cluster_stats["cluster_limit"] == 3
     assert cluster_stats["cluster_window"] == 10
+
+
+# ── CLI flags — scan.py build_parser() ────────────────────────────────────────
+
+def test_backtest_parser_cluster_flags_default_off():
+    from scan import build_parser
+    parser = build_parser()
+    args = parser.parse_args([
+        "backtest", "--tickers", "AAPL", "--start", "2026-01-01", "--end", "2026-01-31",
+    ])
+    assert args.cluster_limit is None
+    assert args.cluster_window == 10
+
+
+def test_backtest_parser_cluster_flags_explicit():
+    from scan import build_parser
+    parser = build_parser()
+    args = parser.parse_args([
+        "backtest", "--tickers", "AAPL", "--start", "2026-01-01", "--end", "2026-01-31",
+        "--cluster-limit", "3", "--cluster-window", "14",
+    ])
+    assert args.cluster_limit == 3
+    assert args.cluster_window == 14
+
+
+def test_scan_parser_rejects_cluster_flags():
+    from scan import build_parser
+    parser = build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["scan", "--tickers", "AAPL", "--cluster-limit", "3"])
+
+
+# ── render_report — conditional cluster line ──────────────────────────────────
+
+def test_render_report_no_cluster_line_when_absent():
+    from scanner.report import render_report
+    md, _ = render_report([], [], [], run_meta={"strategy": "pullback"})
+    assert "Cluster suppression" not in md
+
+
+def test_render_report_no_cluster_line_when_disabled():
+    from scanner.report import render_report
+    md, _ = render_report([], [], [], run_meta={
+        "strategy": "pullback", "cluster_limit": None, "cluster_window": 10,
+        "cluster_suppressed": 0,
+    })
+    assert "Cluster suppression" not in md
+
+
+def test_render_report_has_cluster_line_when_enabled():
+    from scanner.report import render_report
+    md, _ = render_report([], [], [], run_meta={
+        "strategy": "pullback", "cluster_limit": 3, "cluster_window": 10,
+        "cluster_suppressed": 5,
+    })
+    assert "Cluster suppression: limit=3, window=10d, suppressed=5" in md
