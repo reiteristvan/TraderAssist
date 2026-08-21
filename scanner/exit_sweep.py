@@ -434,6 +434,68 @@ def sweep_time(
     return rows
 
 
+def _labeled_row(label: str, trades, split: str) -> dict:
+    row = summarize(trades, split)
+    row["label"] = label
+    return row
+
+
+# At time stops other than the anchor, the prototype sweeps only the
+# (1.0, 1.5) triggers -- keep that so the output stays diffable against the
+# prototype output line for line.
+_BE_SECONDARY_TRIGGERS = (1.0, 1.5)
+
+
+def sweep_breakeven(
+    signals: list[Signal],
+    bars_provider: Callable[[str], Optional[pd.DataFrame]],
+    split: str = DEFAULT_SPLIT,
+    triggers=BE_TRIGGERS,
+    time_stops=BE_TIME_STOPS,
+) -> list[dict]:
+    """One baseline row per time stop (replica with be_trigger=None),
+    followed by one row per trigger. Reuses simulate_variant unchanged --
+    no second bar loop.
+    """
+    rows = []
+    for ts in time_stops:
+        baseline = simulate_variant(signals, bars_provider, time_stop=ts, be_trigger=None)
+        rows.append(_labeled_row(f"baseline ts={ts}", baseline, split))
+        trig_set = triggers if ts == ANCHOR_TIME_STOP else _BE_SECONDARY_TRIGGERS
+        for k in trig_set:
+            variant = simulate_variant(signals, bars_provider, time_stop=ts, be_trigger=k)
+            rows.append(_labeled_row(f"BE@{k}R ts={ts}", variant, split))
+    return rows
+
+
+def sweep_target(
+    signals: list[Signal],
+    bars_provider: Callable[[str], Optional[pd.DataFrame]],
+    split: str = DEFAULT_SPLIT,
+    multiples=TARGET_MULTIPLES,
+    time_stops=TARGET_TIME_STOPS,
+) -> list[dict]:
+    """One "current (resistance)" row per time stop (target_multiple=None),
+    followed by one row per fixed multiple. Reuses simulate_variant
+    unchanged -- no second bar loop.
+
+    Because the target override moves the gap-up guard onto the synthetic
+    target, override rows can cover MORE trades than the baseline row for
+    the same time stop: a signal whose entry gapped past the published
+    resistance target is re-admitted once a wider synthetic target no
+    longer excludes it. This is the prototype's behavior, preserved
+    deliberately -- see render_target_table's footnote.
+    """
+    rows = []
+    for ts in time_stops:
+        baseline = simulate_variant(signals, bars_provider, time_stop=ts, target_multiple=None)
+        rows.append(_labeled_row(f"current (resistance) ts={ts}", baseline, split))
+        for k in multiples:
+            variant = simulate_variant(signals, bars_provider, time_stop=ts, target_multiple=k)
+            rows.append(_labeled_row(f"target={k}R ts={ts}", variant, split))
+    return rows
+
+
 # -- ASCII report rendering --------------------------------------------------
 # String building lives here (testable without subprocess gymnastics);
 # print() lives only in exit_rule_sweep.py. Every character in every string
@@ -490,3 +552,85 @@ def render_time_table(rows: list[dict]) -> str:
             f"{stop_pct:>7.1f}{tgt_pct:>7.1f}{time_pct:>7.1f}"
         )
     return "\n".join(lines)
+
+
+def render_breakeven_table(rows: list[dict]) -> str:
+    lines = [
+        f"{'variant':22s}{'n':>6}{'meanR':>9}{'trainR':>9}{'holdR':>9}{'win%':>7}"
+        f"{'stop%':>7}{'tgt%':>7}{'time%':>7}"
+    ]
+    for row in rows:
+        mix = row["mix"]
+        tot = sum(mix.values())
+        # be_stop is folded into the stop bucket for display -- it is a
+        # stop, just one whose price moved to entry after arming.
+        stop_pct = 100 * (mix.get("stop", 0) + mix.get("be_stop", 0)) / tot if tot else float("nan")
+        tgt_pct = 100 * mix.get("target", 0) / tot if tot else float("nan")
+        time_pct = 100 * mix.get("time_stop", 0) / tot if tot else float("nan")
+        lines.append(
+            f"{row['label']:22s}{row['n']:>6}{row['mean']:>+9.4f}"
+            f"{row['train']:>+9.4f}{row['hold']:>+9.4f}{row['win']:>7.1f}"
+            f"{stop_pct:>7.1f}{tgt_pct:>7.1f}{time_pct:>7.1f}"
+        )
+    return "\n".join(lines)
+
+
+_TARGET_FOOTNOTE = (
+    "note: fixed-multiple rows above re-admit trades whose entry gapped "
+    "past the published resistance target, so n is not comparable row to "
+    "row against the current-target baseline"
+)
+
+
+def render_target_table(rows: list[dict]) -> str:
+    lines = [
+        f"{'variant':22s}{'n':>6}{'meanR':>9}{'trainR':>9}{'holdR':>9}{'win%':>7}"
+        f"{'tgt-hit%':>9}"
+    ]
+    for row in rows:
+        mix = row["mix"]
+        tot = sum(mix.values())
+        tgt_pct = 100 * mix.get("target", 0) / tot if tot else float("nan")
+        lines.append(
+            f"{row['label']:22s}{row['n']:>6}{row['mean']:>+9.4f}"
+            f"{row['train']:>+9.4f}{row['hold']:>+9.4f}{row['win']:>7.1f}"
+            f"{tgt_pct:>9.1f}"
+        )
+    lines.append(_TARGET_FOOTNOTE)
+    return "\n".join(lines)
+
+
+# The single most reusable output of the 2026-08-19 signal-quality
+# investigation: at ~3,800 trades with heavy time clustering, the baseline
+# 95% CI (~+/-0.2R) dwarfs the ~0.03R effect sizes every sweep above is
+# hunting for. Printed under every table so the next reader sees it where
+# it matters, not buried in a research document nobody re-reads.
+STANDING_CAVEAT = (
+    "caveat: at this sample size the baseline 95% CI is about +/-0.2R "
+    "against effect sizes near 0.03R -- a table ordering above is not "
+    "evidence on its own"
+)
+
+
+def render_report(
+    mode: str,
+    header: str,
+    reports: list[EquivalenceReport],
+    time_rows: Optional[list[dict]] = None,
+    be_rows: Optional[list[dict]] = None,
+    target_rows: Optional[list[dict]] = None,
+) -> str:
+    """Compose the full report string: header, gate section, then whichever
+    tables `mode` selected, plus the standing statistical-power caveat.
+    Never prints -- callers on a failed gate should not reach this function
+    with any rows at all; see exit_rule_sweep.py's suppress-on-failure path.
+    """
+    sections = [header, render_gate_section(reports)]
+    if mode in ("time", "all") and time_rows is not None:
+        sections.append(render_time_table(time_rows))
+    if mode in ("breakeven", "all") and be_rows is not None:
+        sections.append(render_breakeven_table(be_rows))
+    if mode in ("target", "all") and target_rows is not None:
+        sections.append(render_target_table(target_rows))
+    sections.append(STANDING_CAVEAT)
+    return "\n\n".join(sections)

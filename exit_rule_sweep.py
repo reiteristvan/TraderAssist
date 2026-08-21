@@ -89,22 +89,24 @@ def main(argv: list[str] | None = None) -> int:
     ]
 
     header = exit_sweep.render_header(args.run_dir, args.split, args.strategy, len(signals))
-    gate_section = exit_sweep.render_gate_section(reports)
 
     if not all(r.ok for r in reports):
         print(header, file=sys.stderr)
-        print(gate_section, file=sys.stderr)
+        print(exit_sweep.render_gate_section(reports), file=sys.stderr)
         return 3
 
-    sections = [header, gate_section]
-
-    if args.mode == "time":
+    time_rows = be_rows = target_rows = None
+    if args.mode in ("time", "all"):
         time_rows = exit_sweep.sweep_time(signals, bars_provider, split=args.split)
-        sections.append(exit_sweep.render_time_table(time_rows))
-    else:
-        sections.append("not implemented yet")
+    if args.mode in ("breakeven", "all"):
+        be_rows = exit_sweep.sweep_breakeven(signals, bars_provider, split=args.split)
+    if args.mode in ("target", "all"):
+        target_rows = exit_sweep.sweep_target(signals, bars_provider, split=args.split)
 
-    print("\n\n".join(sections))
+    print(exit_sweep.render_report(
+        args.mode, header, reports, time_rows=time_rows,
+        be_rows=be_rows, target_rows=target_rows,
+    ))
     return 0
 
 

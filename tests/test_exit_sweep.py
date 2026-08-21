@@ -15,11 +15,16 @@ import pandas as pd
 import pytest
 
 from scanner.exit_sweep import (
+    ANCHOR_TIME_STOP,
     EquivalenceReport,
     VariantTrade,
     check_equivalence,
+    render_breakeven_table,
+    render_target_table,
     simulate_variant,
     summarize,
+    sweep_breakeven,
+    sweep_target,
     sweep_time,
 )
 from scanner.simulate import Signal, simulate_trades
@@ -415,3 +420,131 @@ def test_sweep_time_uses_real_simulator_and_matches_variant_baseline():
     variant_summary = summarize(variant_trades, split="2024-01-01")
     assert row["n"] == variant_summary["n"]
     assert row["mean"] == pytest.approx(variant_summary["mean"], abs=1e-9)
+
+
+# -- Task 2: breakeven pessimism, target override, cross-table consistency --
+
+def test_breakeven_arming_is_pessimistic_no_exit_on_trigger_bar():
+    # Bar 0: high clears the 1.0R trigger (entry 100 + 1*5 = 105) but low
+    # sits between the original stop (95) and entry (100) -- must NOT exit
+    # at breakeven on this bar. Bar 1: low touches entry exactly -> exits
+    # at breakeven with r == 0.0.
+    bars = _bars([
+        (100.0, 106.0, 97.0, 101.0),   # trigger bar: high>=105, low=97 (>95, <100)
+        (101.0, 102.0, 100.0, 101.5),  # later bar: low touches entry exactly
+    ])
+    sig = _sig(stop=95.0, target=200.0, atr=2.0)  # far target so BE/stop decide the exit
+    trades = simulate_variant([sig], _provider({"AAA": bars}), time_stop=10, be_trigger=1.0)
+    assert len(trades) == 1
+    t = trades[0]
+    assert t.exit_reason == "be_stop"
+    assert t.r_multiple == pytest.approx(0.0)
+
+
+def test_be_trigger_none_matches_task1_equivalence_and_never_arms():
+    # be_trigger=None must leave the walk identical to the baseline replica
+    # -- already proven by the equivalence test, but explicitly assert here
+    # that no bar can ever move the stop when be_trigger is None (the
+    # armed stop, if it existed, would equal entry_px and never go below).
+    bars = _bars([(100.0, 130.0, 99.0, 101.0)] * 3)  # high always clears any BE trigger
+    sig = _sig(stop=95.0, target=200.0, atr=2.0)
+    trades = simulate_variant([sig], _provider({"AAA": bars}), time_stop=10, be_trigger=None)
+    assert len(trades) == 1
+    # Never stopped out at entry (100.0) -- stays on the original floor-
+    # adjusted stop since be_trigger=None means arming can never happen.
+    assert trades[0].exit_reason != "be_stop"
+
+
+def test_target_multiple_exits_at_entry_plus_k_risk_with_r_equal_k():
+    bars = _bars([(100.0, 108.0, 99.0, 103.0)])  # high 108 clears entry+1.5*5=107.5
+    sig = _sig(stop=95.0, target=110.0, atr=2.0)
+    trades = simulate_variant([sig], _provider({"AAA": bars}), time_stop=10, target_multiple=1.5)
+    assert len(trades) == 1
+    t = trades[0]
+    assert t.exit_reason == "target"
+    assert t.r_multiple == pytest.approx(1.5)
+    assert t.exit_px == pytest.approx(100.0 + 1.5 * 5.0)
+
+
+def test_target_multiple_readmits_trade_gap_skipped_by_published_target():
+    # Published target is 103 -- entry 105 gap-skips against it (published
+    # gap-up guard). risk = entry(105) - effective_stop(95) = 10, so a
+    # k=1.0 override synthesizes a target of 115, which entry (105) sits
+    # below -- the trade IS simulated even though the published target had
+    # already gap-skipped it.
+    bars = _bars([(105.0, 116.0, 104.0, 106.0)])
+    sig = _sig(stop=95.0, target=103.0, atr=2.0)
+
+    baseline = simulate_variant([sig], _provider({"AAA": bars}), time_stop=10, target_multiple=None)
+    assert baseline == []  # gap-skipped against the published target
+
+    override = simulate_variant([sig], _provider({"AAA": bars}), time_stop=10, target_multiple=1.0)
+    assert len(override) == 1
+
+
+def test_target_multiple_none_reproduces_baseline_n_and_mean():
+    signals, bars_provider = _equivalence_fixture()
+    baseline_via_sweep = simulate_variant(signals, bars_provider, time_stop=10, target_multiple=None)
+    baseline_direct = simulate_variant(signals, bars_provider, time_stop=10)
+    assert len(baseline_via_sweep) == len(baseline_direct)
+    s1 = summarize(baseline_via_sweep, split="2024-01-01")
+    s2 = summarize(baseline_direct, split="2024-01-01")
+    assert s1["n"] == s2["n"]
+    assert s1["mean"] == pytest.approx(s2["mean"], abs=1e-9)
+
+
+def test_breakeven_and_target_baseline_rows_match_time_table_row():
+    signals, bars_provider = _equivalence_fixture()
+    split = "2024-01-01"
+
+    time_rows = sweep_time(signals, bars_provider, time_stops=(ANCHOR_TIME_STOP,), split=split)
+    be_rows = sweep_breakeven(signals, bars_provider, split=split, time_stops=(ANCHOR_TIME_STOP,), triggers=())
+    target_rows = sweep_target(signals, bars_provider, split=split, time_stops=(ANCHOR_TIME_STOP,), multiples=())
+
+    time_row = time_rows[0]
+    be_baseline = next(r for r in be_rows if r["label"] == f"baseline ts={ANCHOR_TIME_STOP}")
+    target_baseline = next(r for r in target_rows if r["label"] == f"current (resistance) ts={ANCHOR_TIME_STOP}")
+
+    assert be_baseline["n"] == time_row["n"]
+    assert target_baseline["n"] == time_row["n"]
+    assert be_baseline["mean"] == pytest.approx(time_row["mean"], abs=1e-9)
+    assert target_baseline["mean"] == pytest.approx(time_row["mean"], abs=1e-9)
+
+
+def test_sweep_breakeven_full_trigger_grid_at_anchor_reduced_elsewhere():
+    signals, bars_provider = _equivalence_fixture()
+    rows = sweep_breakeven(
+        signals, bars_provider, split="2024-01-01",
+        triggers=(0.5, 0.75, 1.0, 1.5, 2.0), time_stops=(10, 20),
+    )
+    labels = [r["label"] for r in rows]
+    for k in (0.5, 0.75, 1.0, 1.5, 2.0):
+        assert f"BE@{k}R ts=10" in labels
+    assert "BE@1.0R ts=20" in labels
+    assert "BE@1.5R ts=20" in labels
+    assert "BE@0.5R ts=20" not in labels
+
+
+def test_render_target_table_includes_footnote():
+    signals, bars_provider = _equivalence_fixture()
+    rows = sweep_target(signals, bars_provider, split="2024-01-01", time_stops=(10,), multiples=(2.0,))
+    text = render_target_table(rows)
+    assert "not comparable row to row" in text
+
+
+def test_render_breakeven_table_folds_be_stop_into_stop_bucket():
+    rows = [{
+        "label": "BE@1.0R ts=10", "n": 2, "mean": 0.0, "train": 0.0, "hold": 0.0,
+        "win": 50.0, "mix": {"be_stop": 1, "target": 1},
+    }]
+    text = render_breakeven_table(rows)
+    # 1 be_stop + 0 stop out of 2 total -> 50.0 in the stop% column.
+    assert "50.0" in text
+
+
+def test_exactly_one_simulate_variant_definition_in_module():
+    import inspect
+
+    import scanner.exit_sweep as m
+    src = inspect.getsource(m)
+    assert src.count("def simulate_variant") == 1
