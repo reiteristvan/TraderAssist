@@ -197,6 +197,15 @@ state, offset from the numbers above by a small, internally consistent shift (ba
 3828-3813 before and 3809-3794 after, which is strong evidence the sweep logic itself did not
 change). See the quick task 260819-sgn SUMMARY for the full before/after comparison table.
 
+**Root cause identified (2026-08-21).** Not an unexplained external process: `data_store._fetch_raw`
+fetches with `auto_adjust=True` (scanner/data_store.py:119), so any new dividend or split retroactively
+re-scales the entire historical price series. Filesystem evidence: 599 of 1,535 OHLCV Parquet files were
+rewritten at 2026-08-21 11:27, followed by a routine nightly scan at 11:36 — the owner's normal workflow,
+two days after the reference run. Changed bars move stop/target hits and gap-guard outcomes, which is why
+n fell by 19 with no code change. The qualitative conclusions in this document are unaffected: the drift is
+about 0.005R against a +/-0.2R noise band, and every ordering and sign is preserved. The durable implication
+is that backtest results carry a data vintage as well as a git hash, and only the latter is recorded.
+
 ```
 run_dir=runs/pb_2021_2026_v10  split=2024-01-01  strategy=both  signals=3883
 

@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-07-09)
 Phase: Milestone v1.1 complete
 Plan: —
 Status: Awaiting next milestone
-Last activity: 2026-08-19 — Completed quick task 260819-ko0: entry-side stop floor in simulate.py
+Last activity: 2026-08-21 — Completed quick task 260819-sgn: exit-rule sweep tooling + signal quality investigation findings
 
 ## Performance Metrics
 
@@ -84,6 +84,7 @@ None.
 | 260819-gv9 | Persist entry-time features (rsi_entry, rvol, pullback_depth_pct, pct_to_52w_high) to the signals table; schema v10; shared entry_features() normalization helper wired into both the backtest and live scan write paths | 2026-08-19 | ae81458 | [260819-gv9-persist-entry-time-features-rsi-entry-rv](./quick/260819-gv9-persist-entry-time-features-rsi-entry-rv/) |
 | 260819-jjh | Add winner_loser_split.py read-only train/holdout feature diagnostic CLI + scanner/winner_loser.py analysis engine; reference-run parity gate reproduces the prototype's 9 published values exactly | 2026-08-19 | 7418cc3 | [260819-jjh-add-winner-loser-split-py-diagnostic-cli](./quick/260819-jjh-add-winner-loser-split-py-diagnostic-cli/) |
 | 260819-ko0 | Extend the 0.5x ATR stop floor to the entry side in simulate.py (CHANGES TRADING LOGIC — approved 2026-08-19); widens the stop against an adverse open gap so entry_px − stop can no longer collapse; gap_skip guards unchanged | 2026-08-19 | ef26c0d | [260819-ko0-widen-simulated-stop-to-entry-minus-0-5x](./quick/260819-ko0-widen-simulated-stop-to-entry-minus-0-5x/) |
+| 260819-sgn | Promote exit-rule sweep tooling (scanner/exit_sweep.py + exit_rule_sweep.py) with a trade-by-trade equivalence gate against the real simulator; document the 2026-08-19 signal quality investigation in .planning/research/ | 2026-08-21 | 45806e9 | [260819-sgn-promote-exit-rule-sweep-tooling-and-docu](./quick/260819-sgn-promote-exit-rule-sweep-tooling-and-docu/) |
 
 ## Session Continuity
 

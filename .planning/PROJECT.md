@@ -103,6 +103,7 @@ Key lessons from prior milestones:
 - At ~3,800 trades with heavy time clustering the baseline CI is ~+-0.2R, roughly 7x the effect sizes being tested — gate and parameter attribution is not resolvable at this sample size. Full evidence: `.planning/research/2026-08-19-signal-quality-investigation.md`.
 - Breakeven stops degrade this strategy at every trigger level tested; its expectancy comes from the ~21% of trades that reach target at ~+2.1R.
 - The resistance-aware target from `compute_targets` beats every fixed R-multiple target tested, on both train and holdout.
+- Backtest results are NOT reproducible across a data refresh. `data_store._fetch_raw` fetches with `auto_adjust=True` (scanner/data_store.py:119), so a new dividend or split retroactively re-scales the ENTIRE historical price series. Observed 2026-08-21: a routine `refresh` rewrote 599 of 1,535 OHLCV Parquet files and re-simulating the identical stored signal set shifted n from 3813 to 3794 and mean R from +0.0293 to +0.0241 — with zero code change. `run_meta.json` pins `git_hash` but nothing pins the data vintage, so comparing two runs made at different times conflates a strategy change with a data change. Record the refresh date alongside any result you intend to compare later, and re-run both arms of a comparison against the same cache state.
 
 ## Constraints
 
